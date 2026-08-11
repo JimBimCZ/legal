@@ -21,7 +21,14 @@ fi
 echo "Building image '${IMAGE_NAME}'..."
 docker build -t "${IMAGE_NAME}" "${PROJECT_ROOT}"
 
+ENV_FILE_ARGS=()
+if [ -f "${PROJECT_ROOT}/.env" ]; then
+  ENV_FILE_ARGS=(--env-file "${PROJECT_ROOT}/.env")
+else
+  echo "Warning: no .env file found at ${PROJECT_ROOT}/.env — the AI chat feature needs OPENROUTER_API_KEY to work."
+fi
+
 echo "Starting container '${CONTAINER_NAME}' on port ${PORT}..."
-docker run -d --name "${CONTAINER_NAME}" -p "${PORT}:8000" "${IMAGE_NAME}"
+docker run -d --name "${CONTAINER_NAME}" "${ENV_FILE_ARGS[@]}" -p "${PORT}:8000" "${IMAGE_NAME}"
 
 echo "Backend available at http://localhost:${PORT}"
