@@ -65,7 +65,16 @@ Backend available at http://localhost:8000
 - Frontend is not yet wired to auth - no login screen or protected routes; the only user-facing feature is still the client-side Mutual NDA creator (form, live preview, PDF download)
 - Start/stop scripts for Mac, Linux, and Windows (`scripts/start-*`, `scripts/stop-*`) that build and run the Docker image
 
+### (LEG-5) AI Chat for Mutual NDA
+- Added a freeform AI chat (`NdaChat`, above the form/preview) that converses with the user and populates the Mutual NDA cover-page fields from their responses - still scoped to the Mutual NDA only, not the other 10 document types in the catalog
+- The existing form and preview are unchanged and now act as an editable "review/correct the AI's extraction" panel; edits in either direction (chat or form) stay in sync, and a diff-based merge on the frontend prevents a manual edit made while a chat reply is in flight from being overwritten when the reply lands
+- New stateless `POST /api/chat` endpoint (`backend/app/routes/chat.py`, `backend/app/nda_chat.py`) - no auth, matching the rest of the NDA creator; takes the running chat history plus the currently-known field values and returns the assistant's next reply and its best-current understanding of every field
+- LLM calls use LiteLLM via OpenRouter with Cerebras as the inference provider (`openrouter/openai/gpt-oss-120b`) and Structured Outputs (Pydantic `NdaFields` model), per the Cerebras skill
+- `OPENROUTER_API_KEY` is read from the repo-root `.env` (loaded via `python-dotenv` in `backend/app/main.py` for local/dev use) and passed into the Docker container via `--env-file` in all three start scripts - the key is never baked into the image
+- Still no auth or document persistence for the chat - conversation and field state live only in frontend React state, matching how the form has always worked
+
 ### Current API Endpoints
 - `POST /api/auth/signup` - Create new user account
 - `POST /api/auth/signin` - Verify credentials, return user record (no session/JWT)
+- `POST /api/chat` - Freeform AI chat turn for the Mutual NDA creator; returns the assistant's reply plus its current understanding of all cover-page fields
 - `GET /api/health` - Health check
