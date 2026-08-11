@@ -1,0 +1,14 @@
+.git
+.claude
+.env
+
+**/__pycache__
+**/.venv
+**/.venv/**
+backend/data
+**/*.db
+**/*.sqlite3
+
+frontend/node_modules
+frontend/.next
+frontend/out

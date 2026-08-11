@@ -1,0 +1,19 @@
+[project]
+name = "legal-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "bcrypt>=5.0.0",
+    "email-validator>=2.3.0",
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52.1",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+]
+
+[tool.uv]
+package = false
