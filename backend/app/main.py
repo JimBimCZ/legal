@@ -1,12 +1,17 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .config import get_static_dir
+from .config import BACKEND_ROOT, get_static_dir
 from .db import init_db
-from .routes import auth, health
+from .routes import auth, chat, health
+
+# No-op if the file is absent (e.g. in the Docker image, where the key is
+# instead injected as a real env var via `docker run --env-file`).
+load_dotenv(BACKEND_ROOT.parent / ".env")
 
 
 @asynccontextmanager
@@ -19,6 +24,7 @@ app = FastAPI(title="Legal Platform API", lifespan=lifespan)
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(chat.router)
 
 # Registered after the routers above so "/api/*" always wins over this
 # catch-all mount. Guarded so `uv run uvicorn` still boots standalone before

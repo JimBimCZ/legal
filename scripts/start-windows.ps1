@@ -22,7 +22,15 @@ if ($stopped) {
 Write-Host "Building image '$ImageName'..."
 docker build -t $ImageName $ProjectRoot
 
+$EnvFilePath = Join-Path $ProjectRoot ".env"
+$EnvFileArgs = @()
+if (Test-Path $EnvFilePath) {
+    $EnvFileArgs = @("--env-file", $EnvFilePath)
+} else {
+    Write-Host "Warning: no .env file found at $EnvFilePath — the AI chat feature needs OPENROUTER_API_KEY to work."
+}
+
 Write-Host "Starting container '$ContainerName' on port $Port..."
-docker run -d --name $ContainerName -p "${Port}:8000" $ImageName | Out-Null
+docker run -d --name $ContainerName @EnvFileArgs -p "${Port}:8000" $ImageName | Out-Null
 
 Write-Host "Backend available at http://localhost:$Port"
