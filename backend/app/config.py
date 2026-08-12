@@ -23,3 +23,18 @@ def get_catalog_path() -> Path:
 
 def get_templates_dir() -> Path:
     return get_repo_root() / "templates"
+
+
+def get_session_secret() -> str:
+    """Read live (not cached) so tests can point this at an isolated value.
+    Falls back to a fixed dev-only value so local/test runs work without
+    extra setup; production deployments should set SESSION_SECRET via .env,
+    the same delivery mechanism already used for OPENROUTER_API_KEY."""
+    return os.environ.get("SESSION_SECRET", "dev-insecure-session-secret-change-me")
+
+
+def get_cookie_secure() -> bool:
+    """Whether the session cookie should require HTTPS. Defaults to False
+    since the app currently runs over plain HTTP; flip via env var once
+    served behind TLS."""
+    return os.environ.get("COOKIE_SECURE", "false").lower() == "true"

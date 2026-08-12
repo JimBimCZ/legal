@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from ..deps import get_current_user
 from ..documents import CatalogEntry, DocumentDetail, get_document_detail, load_catalog
 
-router = APIRouter(prefix="/api/documents", tags=["documents"])
+router = APIRouter(prefix="/api/documents", tags=["documents"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("", response_model=list[CatalogEntry])

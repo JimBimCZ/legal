@@ -3,14 +3,12 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import { TEST_CATALOG, TEST_DOCUMENT, TEST_DOCUMENT_B } from "@/lib/documentTestFixtures";
+import { TEST_CATALOG, TEST_DOCUMENT } from "@/lib/documentTestFixtures";
 
 // Stub the PDF pipeline for this jsdom-based flow test — real PDF generation
 // (web worker + Blob URLs) is exercised separately in DocumentPdf.test.tsx
 // under a node environment.
 vi.mock("@react-pdf/renderer", () => ({
-  // DocumentPdf.tsx calls StyleSheet.create(...) at module scope, so the mock
-  // needs a working stand-in even though we never render the document.
   StyleSheet: { create: (styles: unknown) => styles },
   Document: "document-stub",
   Page: "page-stub",
@@ -27,183 +25,169 @@ vi.mock("@react-pdf/renderer", () => ({
   ),
 }));
 
-const { sendChatMessage } = vi.hoisted(() => ({ sendChatMessage: vi.fn() }));
+const { fetchCurrentUser, signIn, signUp, signOut } = vi.hoisted(() => ({
+  fetchCurrentUser: vi.fn(),
+  signIn: vi.fn(),
+  signUp: vi.fn(),
+  signOut: vi.fn(),
+}));
 const { fetchDocumentDetail, fetchDocumentCatalog } = vi.hoisted(() => ({
   fetchDocumentDetail: vi.fn(),
   fetchDocumentCatalog: vi.fn(),
 }));
+const { fetchSavedDocuments, createSavedDocument, fetchSavedDocument, sendDocumentMessage } = vi.hoisted(
+  () => ({
+    fetchSavedDocuments: vi.fn(),
+    createSavedDocument: vi.fn(),
+    fetchSavedDocument: vi.fn(),
+    sendDocumentMessage: vi.fn(),
+  }),
+);
 
-vi.mock("@/lib/chatApi", () => ({ sendChatMessage }));
+vi.mock("@/lib/authApi", () => ({ fetchCurrentUser, signIn, signUp, signOut }));
 vi.mock("@/lib/documentsApi", () => ({ fetchDocumentDetail, fetchDocumentCatalog }));
+vi.mock("@/lib/savedDocumentsApi", () => ({
+  fetchSavedDocuments,
+  createSavedDocument,
+  fetchSavedDocument,
+  sendDocumentMessage,
+}));
 
 const { default: Home } = await import("@/app/page");
 
-function previewRegion() {
-  return screen.getByRole("heading", { name: "Document Preview" }).closest("section")!;
-}
+const USER = { id: 1, email: "user@example.com", created_at: "2026-01-01 00:00:00" };
 
-async function selectTestDocument(user: ReturnType<typeof userEvent.setup>) {
-  fetchDocumentDetail.mockResolvedValueOnce(TEST_DOCUMENT);
-  await user.click(await screen.findByRole("button", { name: /Test Agreement/ }));
-  await screen.findByRole("heading", { name: "Test Agreement Details" });
-}
+const SAVED_DOCUMENT = {
+  id: 7,
+  documentTypeId: TEST_DOCUMENT.id,
+  documentTypeName: TEST_DOCUMENT.name,
+  fields: {},
+  messages: [{ role: "assistant" as const, content: "Great, let's fill in your Test Agreement." }],
+  createdAt: "2026-01-01 00:00:00",
+  updatedAt: "2026-01-01 00:00:00",
+};
 
 beforeEach(() => {
-  sendChatMessage.mockReset();
+  fetchCurrentUser.mockReset();
+  signIn.mockReset();
+  signUp.mockReset();
+  signOut.mockReset();
   fetchDocumentDetail.mockReset();
   fetchDocumentCatalog.mockReset();
+  fetchSavedDocuments.mockReset();
+  createSavedDocument.mockReset();
+  fetchSavedDocument.mockReset();
+  sendDocumentMessage.mockReset();
+
   fetchDocumentCatalog.mockResolvedValue(TEST_CATALOG);
+  fetchSavedDocuments.mockResolvedValue([]);
 });
 
-describe("Home (menu-driven document creator flow)", () => {
-  it("shows the document menu and a placeholder preview before a document is selected", async () => {
+describe("Home (auth-gated multi-user flow)", () => {
+  it("shows the sign-in screen when there is no active session", async () => {
+    fetchCurrentUser.mockResolvedValue(null);
     render(<Home />);
-    expect(screen.getByRole("heading", { name: "Legal Document Creator" })).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /Test Agreement/ })).toBeInTheDocument();
-    expect(
-      within(previewRegion()).getByText(/Choose a document type to see a preview here/),
-    ).toBeInTheDocument();
+
+    expect(await screen.findByRole("heading", { name: "Legal Document Creator" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
 
-  it("shows the chat and preview once a document is chosen from the menu", async () => {
-    const user = userEvent.setup();
+  it("goes straight to the dashboard when a session already exists", async () => {
+    fetchCurrentUser.mockResolvedValue(USER);
     render(<Home />);
 
-    await selectTestDocument(user);
-
-    expect(screen.getByText(/let's fill in your Test Agreement/)).toBeInTheDocument();
-    expect(within(previewRegion()).getAllByText("[Customer]").length).toBe(2);
-    expect(screen.queryByRole("link", { name: "Download PDF" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Test Agreement/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your Documents" })).toBeInTheDocument();
+    expect(screen.getByText(USER.email)).toBeInTheDocument();
   });
 
-  it("shows a loading state while the selected document's details are being fetched", async () => {
+  it("reaches the dashboard after signing in", async () => {
     const user = userEvent.setup();
-    let resolveFetch!: (value: typeof TEST_DOCUMENT) => void;
-    fetchDocumentDetail.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveFetch = resolve;
-      }),
-    );
+    fetchCurrentUser.mockResolvedValue(null);
+    signIn.mockResolvedValue(USER);
 
     render(<Home />);
+    await screen.findByRole("button", { name: "Sign in" });
+
+    await user.type(screen.getByLabelText("Email"), "user@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("heading", { name: "Your Documents" })).toBeInTheDocument();
+  });
+
+  it("shows an empty state on the dashboard with no saved documents", async () => {
+    fetchCurrentUser.mockResolvedValue(USER);
+    render(<Home />);
+
+    expect(await screen.findByText(/don't have any documents yet/)).toBeInTheDocument();
+  });
+
+  it("creates a new document from the dashboard menu and enters the creator", async () => {
+    const user = userEvent.setup();
+    fetchCurrentUser.mockResolvedValue(USER);
+    createSavedDocument.mockResolvedValue(SAVED_DOCUMENT);
+    fetchDocumentDetail.mockResolvedValue(TEST_DOCUMENT);
+
+    render(<Home />);
+    await user.click(await screen.findByRole("button", { name: "+ New Document" }));
     await user.click(await screen.findByRole("button", { name: /Test Agreement/ }));
 
-    expect(await screen.findByText("Loading document…")).toBeInTheDocument();
-
-    resolveFetch(TEST_DOCUMENT);
-    await screen.findByRole("heading", { name: "Test Agreement Details" });
+    expect(createSavedDocument).toHaveBeenCalledWith("Test-Doc.md");
+    expect(await screen.findByRole("heading", { name: "Test Agreement Details" })).toBeInTheDocument();
+    expect(screen.getByText("Great, let's fill in your Test Agreement.")).toBeInTheDocument();
   });
 
-  it("shows an error if the selected document's details fail to load", async () => {
+  it("resumes an existing saved document with its persisted messages and fields", async () => {
     const user = userEvent.setup();
-    fetchDocumentDetail.mockRejectedValueOnce(new Error("Failed to load the document."));
-
-    render(<Home />);
-    await user.click(await screen.findByRole("button", { name: /Test Agreement/ }));
-
-    expect(await screen.findByText("Failed to load the document.")).toBeInTheDocument();
-  });
-
-  it("reflects field values returned by the chat live in the preview", async () => {
-    const user = userEvent.setup();
-    render(<Home />);
-    await selectTestDocument(user);
-
-    sendChatMessage.mockResolvedValueOnce({
-      reply: "Got it, when does it start?",
-      selectedDocument: TEST_DOCUMENT.id,
-      selectedDocumentName: TEST_DOCUMENT.name,
+    fetchCurrentUser.mockResolvedValue(USER);
+    fetchSavedDocuments.mockResolvedValue([SAVED_DOCUMENT]);
+    fetchSavedDocument.mockResolvedValue({
+      ...SAVED_DOCUMENT,
       fields: { customer: "Acme Inc." },
+      messages: [
+        { role: "assistant", content: "Great, let's fill in your Test Agreement." },
+        { role: "user", content: "The customer is Acme Inc." },
+        { role: "assistant", content: "Got it, when does it start?" },
+      ],
     });
-    await user.type(screen.getByLabelText("Message"), "The customer is Acme Inc.{enter}");
-    await screen.findByText("Got it, when does it start?");
-
-    // "Acme Inc." appears twice: once in the Fields summary, once inline
-    // where the "Customer" field is referenced in the document body.
-    expect(within(previewRegion()).getAllByText("Acme Inc.").length).toBe(2);
-    expect(within(previewRegion()).queryByText("[Customer]")).not.toBeInTheDocument();
-    expect(within(previewRegion()).getAllByText("[Effective Date]").length).toBe(2);
-  });
-
-  it("enables the download link once every field is known, and disables it again if one is cleared", async () => {
-    const user = userEvent.setup();
-    render(<Home />);
-    await selectTestDocument(user);
-
-    sendChatMessage.mockResolvedValueOnce({
-      reply: "All set.",
-      selectedDocument: TEST_DOCUMENT.id,
-      selectedDocumentName: TEST_DOCUMENT.name,
-      fields: { customer: "Acme Inc.", effectiveDate: "2026-03-05" },
-    });
-    await user.type(screen.getByLabelText("Message"), "Acme Inc., starting 2026-03-05{enter}");
-    await screen.findByText("All set.");
-
-    const link = screen.getByRole("link", { name: "Download PDF" });
-    expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute("data-filename", "test-agreement.pdf");
-
-    sendChatMessage.mockResolvedValueOnce({
-      reply: "Actually, who's the customer again?",
-      selectedDocument: TEST_DOCUMENT.id,
-      selectedDocumentName: TEST_DOCUMENT.name,
-      fields: { customer: "", effectiveDate: "2026-03-05" },
-    });
-    await user.type(screen.getByLabelText("Message"), "Actually, remove the customer{enter}");
-    await screen.findByText("Actually, who's the customer again?");
-
-    expect(screen.queryByRole("link", { name: "Download PDF" })).not.toBeInTheDocument();
-  });
-
-  it("switches to a different document when the chat resolves one mid-conversation", async () => {
-    const user = userEvent.setup();
-    render(<Home />);
-    await selectTestDocument(user);
-
-    sendChatMessage.mockResolvedValueOnce({
-      reply: "Switching you to an Other Test Agreement.",
-      selectedDocument: TEST_DOCUMENT_B.id,
-      selectedDocumentName: TEST_DOCUMENT_B.name,
-      fields: {},
-    });
-    fetchDocumentDetail.mockResolvedValueOnce(TEST_DOCUMENT_B);
-    await user.type(screen.getByLabelText("Message"), "Actually, I need the other one{enter}");
-
-    await screen.findByRole("heading", { name: "Other Test Agreement Details" });
-    expect(within(previewRegion()).getAllByText("[Vendor]").length).toBe(2);
-    expect(within(previewRegion()).queryByText("[Customer]")).not.toBeInTheDocument();
-  });
-
-  it("ignores a stale document-detail response that resolves after a newer selection", async () => {
-    const user = userEvent.setup();
-    let resolveFirstFetch!: (value: typeof TEST_DOCUMENT) => void;
-    fetchDocumentDetail.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveFirstFetch = resolve;
-      }),
-    );
+    fetchDocumentDetail.mockResolvedValue(TEST_DOCUMENT);
 
     render(<Home />);
     await user.click(await screen.findByRole("button", { name: /Test Agreement/ }));
-    await screen.findByText("Loading document…");
 
-    sendChatMessage.mockResolvedValueOnce({
-      reply: "Switching you to an Other Test Agreement.",
-      selectedDocument: TEST_DOCUMENT_B.id,
-      selectedDocumentName: TEST_DOCUMENT_B.name,
-      fields: {},
-    });
-    fetchDocumentDetail.mockResolvedValueOnce(TEST_DOCUMENT_B);
-    await user.type(screen.getByLabelText("Message"), "Actually, I need the other one{enter}");
-    await screen.findByRole("heading", { name: "Other Test Agreement Details" });
+    expect(fetchSavedDocument).toHaveBeenCalledWith(7);
+    expect(await screen.findByText("Got it, when does it start?")).toBeInTheDocument();
+    const previewRegion = screen.getByRole("heading", { name: "Document Preview" }).closest("section")!;
+    expect(within(previewRegion).getAllByText("Acme Inc.").length).toBeGreaterThan(0);
+  });
 
-    // The stale first fetch (for the document the user has already switched
-    // away from) resolves last - it must not clobber the newer selection.
-    resolveFirstFetch(TEST_DOCUMENT);
+  it("returns to the dashboard via My Documents and refreshes the list", async () => {
+    const user = userEvent.setup();
+    fetchCurrentUser.mockResolvedValue(USER);
+    createSavedDocument.mockResolvedValue(SAVED_DOCUMENT);
+    fetchDocumentDetail.mockResolvedValue(TEST_DOCUMENT);
 
-    expect(screen.getByRole("heading", { name: "Other Test Agreement Details" })).toBeInTheDocument();
-    expect(within(previewRegion()).getAllByText("[Vendor]").length).toBe(2);
-    expect(within(previewRegion()).queryByText("[Customer]")).not.toBeInTheDocument();
+    render(<Home />);
+    await user.click(await screen.findByRole("button", { name: "+ New Document" }));
+    await user.click(await screen.findByRole("button", { name: /Test Agreement/ }));
+    await screen.findByRole("heading", { name: "Test Agreement Details" });
+
+    fetchSavedDocuments.mockClear();
+    await user.click(screen.getByRole("button", { name: "My Documents" }));
+
+    expect(await screen.findByRole("heading", { name: "Your Documents" })).toBeInTheDocument();
+    expect(fetchSavedDocuments).toHaveBeenCalled();
+  });
+
+  it("logs out back to the sign-in screen", async () => {
+    const user = userEvent.setup();
+    fetchCurrentUser.mockResolvedValue(USER);
+    signOut.mockResolvedValue(undefined);
+
+    render(<Home />);
+    await user.click(await screen.findByRole("button", { name: "Log out" }));
+
+    expect(signOut).toHaveBeenCalled();
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
 });

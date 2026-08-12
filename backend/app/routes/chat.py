@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from ..deps import get_current_user
 from ..document_chat import run_chat_turn
 from ..schemas import ChatRequest, ChatResponse
 
-router = APIRouter(prefix="/api/chat", tags=["chat"])
+router = APIRouter(prefix="/api/chat", tags=["chat"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("", response_model=ChatResponse)

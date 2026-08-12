@@ -36,3 +36,32 @@ class ChatResponse(BaseModel):
     selectedDocument: str | None
     selectedDocumentName: str | None
     fields: dict[str, str]
+
+
+class SavedDocumentSummary(BaseModel):
+    id: int
+    documentTypeId: str
+    documentTypeName: str
+    createdAt: str
+    updatedAt: str
+
+
+class SavedDocumentDetail(SavedDocumentSummary):
+    fields: dict[str, str]
+    messages: list[ChatMessage]
+
+
+class CreateSavedDocumentRequest(BaseModel):
+    documentTypeId: str
+
+
+class SendDocumentMessageRequest(BaseModel):
+    content: str = Field(min_length=1)
+
+
+class SendDocumentMessageResponse(BaseModel):
+    reply: str
+    selectedDocument: str
+    selectedDocumentName: str
+    fields: dict[str, str]
+    updatedAt: str

@@ -2,15 +2,13 @@
 
 import { useEffect, useState } from "react";
 
+import { cardButtonClassName, cardGridClassName } from "@/lib/cardStyles";
 import { fetchDocumentCatalog } from "@/lib/documentsApi";
 import type { DocumentSummary } from "@/types/document";
 
 interface DocumentMenuProps {
   onSelect: (documentId: string, documentName: string) => void;
 }
-
-const cardClassName =
-  "flex flex-col items-start gap-1 rounded-lg border border-zinc-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-zinc-400 hover:bg-zinc-50 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-600 dark:hover:bg-zinc-900";
 
 export function DocumentMenu({ onSelect }: DocumentMenuProps) {
   const [catalog, setCatalog] = useState<DocumentSummary[] | null>(null);
@@ -41,13 +39,13 @@ export function DocumentMenu({ onSelect }: DocumentMenuProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className={cardGridClassName}>
       {catalog.map((entry) => (
         <button
           key={entry.id}
           type="button"
           onClick={() => onSelect(entry.id, entry.name)}
-          className={cardClassName}
+          className={cardButtonClassName}
         >
           <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
             {entry.name}
