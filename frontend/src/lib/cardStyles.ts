@@ -1,5 +1,8 @@
 /** Shared styling for the clickable card grids used by DocumentMenu (catalog types) and Dashboard (saved documents). */
-export const cardGridClassName = "grid grid-cols-1 gap-3 sm:grid-cols-2";
+export const cardGridClassName = "grid grid-cols-1 gap-4 sm:grid-cols-2";
 
 export const cardButtonClassName =
-  "flex flex-col items-start gap-1 rounded-lg border border-zinc-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-zinc-400 hover:bg-zinc-50 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-600 dark:hover:bg-zinc-900";
+  "group flex flex-col items-start gap-3 rounded-sm border border-line bg-paper p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-navy-950 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:border-navy-100";
+
+export const cardCodeClassName =
+  "font-mono text-[10px] font-semibold uppercase tracking-[0.15em] text-blue-600 dark:text-blue-500";
