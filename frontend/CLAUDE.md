@@ -83,6 +83,15 @@ Backend available at http://localhost:8000
 - Docker image now also copies `catalog.json` and `templates/` into the backend runtime image (new `REPO_ROOT` env var, defaulting to the backend's parent dir, so `get_catalog_path()`/`get_templates_dir()` resolve correctly both in Docker and local dev)
 - Still no auth or document persistence - conversation, document selection, and field state all still live only in frontend React state
 
+### (LEG-7) Document Menu, Chat-Only Field Collection, Placeholder Preview, Theme Toggle
+- Replaced the free-text "tell me what kind of document you want" chat phase with a clickable `DocumentMenu` grid (`frontend/src/components/DocumentMenu.tsx`) listing all 11 catalog entries via a new `fetchDocumentCatalog()` call to the existing `GET /api/documents`; picking a card is now the only way to select a document, so `document_chat.py`'s document-selection branch is no longer exercised by this frontend (still there and correct for any other client)
+- Removed the manual side-by-side `DocumentFieldsForm` (deleted, along with its test) - chat is now the sole way to fill in field values, matching the ticket's "entire form filling process done in an AI chat" requirement; the right-hand panel is preview-only
+- `DocumentChat` now takes a `selectedDocumentName` prop and greets with a document-specific message ("Great, let's fill in your {name}...") once a document is already selected from the menu; its `onDocumentSelected` callback signature grew a second `documentName` argument (sourced from the chat API's existing `selectedDocumentName` field) so a mid-conversation document switch updates the page's displayed name without a second lookup
+- New `DocumentPlaceholder` component (a simple inline SVG) renders in the preview panel before any document is selected, replacing the old plain-text prompt
+- New `ThemeToggle` component adds a manual light/dark switch (defaults to OS preference, persisted to `localStorage`, no new dependencies) alongside a no-flash inline script in `layout.tsx` that applies the resolved theme before hydration; `globals.css` switched from `@media (prefers-color-scheme)` to Tailwind v4's class-based `@custom-variant dark (&:where(.dark, .dark *))` so the toggle can override the OS preference. `ThemeToggle` reads/writes the `dark` class via `useSyncExternalStore` (not local state) specifically to resolve correctly across the static export's build-time prerender (`document` undefined, defaults to light) vs. the browser's real class at hydration
+- `page.tsx`'s `handleDocumentSelected` guards against out-of-order `fetchDocumentDetail` responses (via a `useRef` selection counter) so a stale fetch from a document the user has already switched away from can't clobber newer state
+- Still no auth or document persistence - unchanged from LEG-6
+
 ### Current API Endpoints
 - `POST /api/auth/signup` - Create new user account
 - `POST /api/auth/signin` - Verify credentials, return user record (no session/JWT)

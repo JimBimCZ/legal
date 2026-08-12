@@ -1,4 +1,12 @@
-import type { DocumentDetail, DocumentFields } from "@/types/document";
+import type { DocumentDetail, DocumentFields, DocumentSummary } from "@/types/document";
+
+export const TEST_CATALOG: DocumentSummary[] = [
+  {
+    id: "Test-Doc.md",
+    name: "Test Agreement",
+    description: "A test document for exercising the generic document UI.",
+  },
+];
 
 export const TEST_DOCUMENT: DocumentDetail = {
   id: "Test-Doc.md",
@@ -35,4 +43,25 @@ export const TEST_DOCUMENT: DocumentDetail = {
 export const TEST_DOCUMENT_FILLED_VALUES: DocumentFields = {
   customer: "Acme Inc.",
   effectiveDate: "2026-03-05",
+};
+
+export const TEST_DOCUMENT_B: DocumentDetail = {
+  id: "Test-Doc-B.md",
+  name: "Other Test Agreement",
+  description: "A second test document, distinct from TEST_DOCUMENT, for exercising switches.",
+  fields: [{ key: "vendor", label: "Vendor" }],
+  blocks: [
+    {
+      level: 1,
+      number: "1",
+      heading: "Scope",
+      runs: [
+        { kind: "text", text: ". Services are provided by ", bold: false },
+        { kind: "field", text: "Vendor", fieldKey: "vendor" },
+        { kind: "text", text: ".", bold: false },
+      ],
+    },
+  ],
+  sourceAttribution:
+    "Adapted from the Common Paper Other Test Agreement template, licensed under CC BY 4.0.",
 };

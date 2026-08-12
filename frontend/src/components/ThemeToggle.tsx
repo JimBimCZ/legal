@@ -1,0 +1,65 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
+
+const buttonClassName =
+  "inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900";
+
+const listeners = new Set<() => void>();
+
+function applyTheme(dark: boolean) {
+  document.documentElement.classList.toggle("dark", dark);
+  window.localStorage.setItem("theme", dark ? "dark" : "light");
+  for (const listener of listeners) listener();
+}
+
+// Notified by applyTheme() below so a click re-renders every mounted toggle.
+// Separately, React also re-renders once automatically right after hydration:
+// the static export bakes in the light-mode server snapshot below, so the
+// first client render corrects to the real class set by the no-flash script
+// in layout.tsx before hydration.
+function subscribe(onStoreChange: () => void) {
+  listeners.add(onStoreChange);
+  return () => listeners.delete(onStoreChange);
+}
+
+function getSnapshot() {
+  return document.documentElement.classList.contains("dark");
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
+export function ThemeToggle() {
+  const isDark = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  function toggle() {
+    applyTheme(!isDark);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      className={buttonClassName}
+    >
+      {isDark ? (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
+          <path
+            fill="currentColor"
+            d="M12 4.5a1 1 0 0 1 1 1V7a1 1 0 1 1-2 0V5.5a1 1 0 0 1 1-1Zm0 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7.5-3.5a1 1 0 0 1 1-1H22a1 1 0 1 1 0 2h-1.5a1 1 0 0 1-1-1ZM2 12a1 1 0 0 1 1-1h1.5a1 1 0 1 1 0 2H3a1 1 0 0 1-1-1Zm15.66-6.66a1 1 0 0 1 1.41 0l.71.7a1 1 0 0 1-1.41 1.42l-.71-.71a1 1 0 0 1 0-1.41ZM5.63 17.66a1 1 0 0 1 1.41 0l.71.71a1 1 0 1 1-1.41 1.41l-.71-.7a1 1 0 0 1 0-1.42ZM12 18.5a1 1 0 0 1 1 1V21a1 1 0 1 1-2 0v-1.5a1 1 0 0 1 1-1Zm6.37-.84a1 1 0 0 1 1.41 1.41l-.71.71a1 1 0 0 1-1.41-1.41l.71-.71ZM6.34 6.34a1 1 0 0 1 1.41-1.41l.71.7a1 1 0 0 1-1.41 1.42l-.71-.71Z"
+          />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
+          <path
+            fill="currentColor"
+            d="M20.74 15.5a8.5 8.5 0 0 1-10.24-10.24.75.75 0 0 0-.96-.9A9.5 9.5 0 1 0 21.64 16.46a.75.75 0 0 0-.9-.96Z"
+          />
+        </svg>
+      )}
+    </button>
+  );
+}

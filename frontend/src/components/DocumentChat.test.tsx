@@ -17,24 +17,29 @@ beforeEach(() => {
 /** Mirrors how the real Home page wires state, so selection/field updates accumulate like they would for a user. */
 function StatefulChat({
   initialSelectedDocument = null,
+  initialSelectedDocumentName = null,
   initialFields = {},
   onDocumentSelected = () => {},
 }: {
   initialSelectedDocument?: string | null;
+  initialSelectedDocumentName?: string | null;
   initialFields?: DocumentFields;
-  onDocumentSelected?: (id: string) => void;
+  onDocumentSelected?: (id: string, name: string) => void;
 }) {
   const [selectedDocument, setSelectedDocument] = useState(initialSelectedDocument);
+  const [selectedDocumentName, setSelectedDocumentName] = useState(initialSelectedDocumentName);
   const [fields, setFields] = useState<DocumentFields>(initialFields);
   return (
     <>
       <DocumentChat
         selectedDocument={selectedDocument}
+        selectedDocumentName={selectedDocumentName}
         fields={fields}
         onFieldsChange={setFields}
-        onDocumentSelected={(id) => {
+        onDocumentSelected={(id, name) => {
           setSelectedDocument(id);
-          onDocumentSelected(id);
+          setSelectedDocumentName(name);
+          onDocumentSelected(id, name);
         }}
       />
       <button
@@ -93,8 +98,24 @@ describe("DocumentChat", () => {
     await user.type(screen.getByLabelText("Message"), "I need an NDA{enter}");
 
     expect(await screen.findByText("A Mutual NDA it is!")).toBeInTheDocument();
-    expect(onDocumentSelected).toHaveBeenCalledWith("Mutual-NDA.md");
+    expect(onDocumentSelected).toHaveBeenCalledWith(
+      "Mutual-NDA.md",
+      "Mutual Non-Disclosure Agreement",
+    );
     expect(screen.getByTestId("selected-document")).toHaveTextContent("Mutual-NDA.md");
+  });
+
+  it("shows a document-specific greeting when a document is already selected", () => {
+    render(
+      <StatefulChat
+        initialSelectedDocument="Mutual-NDA.md"
+        initialSelectedDocumentName="Mutual Non-Disclosure Agreement"
+      />,
+    );
+    expect(
+      screen.getByText(/let's fill in your Mutual Non-Disclosure Agreement/),
+    ).toBeInTheDocument();
+    expect(sendChatMessage).not.toHaveBeenCalled();
   });
 
   it("leaves the document unselected when the model is still clarifying", async () => {
@@ -181,7 +202,7 @@ describe("DocumentChat", () => {
     await user.type(screen.getByLabelText("Message"), "Actually, I need a DPA instead.{enter}");
 
     await screen.findByText("Switching you to a Data Processing Agreement.");
-    expect(onDocumentSelected).toHaveBeenCalledWith("DPA.md");
+    expect(onDocumentSelected).toHaveBeenCalledWith("DPA.md", "Data Processing Agreement");
     expect(screen.getByTestId("selected-document")).toHaveTextContent("DPA.md");
     expect(snapshotFields()).toEqual({});
   });

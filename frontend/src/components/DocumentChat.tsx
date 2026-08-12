@@ -7,16 +7,20 @@ import type { DocumentFields } from "@/types/document";
 
 interface DocumentChatProps {
   selectedDocument: string | null;
+  selectedDocumentName: string | null;
   fields: DocumentFields;
   onFieldsChange: Dispatch<SetStateAction<DocumentFields>>;
-  onDocumentSelected: (documentId: string) => void;
+  onDocumentSelected: (documentId: string, documentName: string) => void;
 }
 
-const GREETING: ChatMessage = {
-  role: "assistant",
-  content:
-    "Hi! Tell me what kind of legal document you're looking to create, and I'll help you put it together.",
-};
+function greeting(selectedDocumentName: string | null): ChatMessage {
+  return {
+    role: "assistant",
+    content: selectedDocumentName
+      ? `Great, let's fill in your ${selectedDocumentName}. Tell me a bit about it and I'll take it from there.`
+      : "Hi! Tell me what kind of legal document you're looking to create, and I'll help you put it together.",
+  };
+}
 
 const inputClassName =
   "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
@@ -26,11 +30,12 @@ const sendButtonClassName =
 
 export function DocumentChat({
   selectedDocument,
+  selectedDocumentName,
   fields,
   onFieldsChange,
   onDocumentSelected,
 }: DocumentChatProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([GREETING]);
+  const [messages, setMessages] = useState<ChatMessage[]>([greeting(selectedDocumentName)]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,9 +45,8 @@ export function DocumentChat({
     setError(null);
     // Snapshots of what we told the AI was already selected/known, so the
     // response can be handled as a diff against them rather than blindly
-    // overwriting state — a manual field edit made in the side panel (or a
-    // document switch) while this request is in flight shouldn't be
-    // silently discarded when the response lands.
+    // overwriting state — a document switch triggered elsewhere while this
+    // request is in flight shouldn't be silently discarded when it lands.
     const sentDocument = selectedDocument;
     const sentFields = fields;
     try {
@@ -54,8 +58,8 @@ export function DocumentChat({
         // different one — either way, field collection starts fresh, since
         // the previous document's field values don't apply to the new one.
         onFieldsChange({});
-        if (result.selectedDocument) {
-          onDocumentSelected(result.selectedDocument);
+        if (result.selectedDocument && result.selectedDocumentName) {
+          onDocumentSelected(result.selectedDocument, result.selectedDocumentName);
         }
       } else if (result.selectedDocument) {
         onFieldsChange((current) => {
