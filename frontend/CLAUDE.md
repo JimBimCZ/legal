@@ -119,6 +119,15 @@ Backend available at http://localhost:8000
 - Guarded by `test_credentials_survive_a_restart` in `backend/tests/test_auth.py`, which boots two `TestClient` lifespans against one `DATABASE_PATH` (the in-process equivalent of a restart) and asserts signin still succeeds on the second; verified to fail with 401 against the old wiping `init_db()`
 - Test isolation is unaffected: `conftest.py` points `DATABASE_PATH` at a fresh per-test `tmp_path`, so each test still starts from an empty database
 
+### Header Download Button
+- Moved "Download PDF" from the bottom of the preview column (where it sat below a full document render and was easy to miss) into the navy masthead, optically centred
+- The header's `justify-between` flex became a `grid-cols-[1fr_auto_1fr]` so the button stays centred regardless of how wide the title block or signed-in email render; it only appears in the `creator` view and only once `documentDetail` has loaded
+- The completeness gate itself is unchanged and pre-existing (`isDocumentComplete`, every field non-blank) - this ticket only made it visible. `DownloadButton` was restyled for a dark background (`bg-white/10`/`text-white/40` disabled, purple CTA enabled) since its old `text-ink-muted` disabled style was tuned for a light panel and nearly vanished on navy
+- The old inline "Fill in all fields to enable download." paragraph became a `title` tooltip that also names how many fields are left, backed by a new `unfilledFieldCount()` in `documentFields.ts`. That helper drives the hint text only - `isDocumentComplete` remains the gate, because the two intentionally disagree on a field-less document (nothing left to fill in, but still not downloadable)
+- Disabled state is a real `<button aria-disabled="true">` rather than the old inert `<span>`, so keyboard users can focus it and hear why it's blocked; `title` doubles as the accessible description, so no `sr-only` copy of the hint is needed (that would announce the reason twice)
+- No `variant` prop was added: removing the preview-column copy leaves `DownloadButton` with exactly one caller, so it was restyled in place rather than made configurable for a second placement that no longer exists
+- Known rough edge: the third header column crowds narrow (~390px) viewports - the title and the two action links each wrap to two lines. Functional but tighter than before; hiding the header subtitle below `sm` would resolve it
+
 ### Current API Endpoints
 - `POST /api/auth/signup` - Create account, set session cookie, return user record
 - `POST /api/auth/signin` - Verify credentials, set session cookie, return user record

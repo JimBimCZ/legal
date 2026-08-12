@@ -42,8 +42,42 @@ describe("DownloadButton", () => {
   it("shows a disabled placeholder and a hint when the document is incomplete", () => {
     render(<DownloadButton documentDetail={TEST_DOCUMENT} values={{}} />);
     expect(screen.getByText("Download PDF")).toBeInTheDocument();
-    expect(screen.getByText(/Fill in all fields/)).toBeInTheDocument();
+    expect(screen.getByRole("button")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/Fill in all fields/),
+    );
     expect(pdfDownloadLinkSpy).not.toHaveBeenCalled();
+  });
+
+  it("counts the remaining fields in the disabled hint", () => {
+    render(
+      <DownloadButton
+        documentDetail={TEST_DOCUMENT}
+        values={{ ...TEST_DOCUMENT_FILLED_VALUES, effectiveDate: "" }}
+      />,
+    );
+    expect(screen.getByRole("button")).toHaveAttribute(
+      "title",
+      expect.stringContaining("1 field remaining"),
+    );
+  });
+
+  it("pluralises the remaining-field count", () => {
+    render(<DownloadButton documentDetail={TEST_DOCUMENT} values={{}} />);
+    expect(screen.getByRole("button")).toHaveAttribute(
+      "title",
+      expect.stringContaining(`${TEST_DOCUMENT.fields.length} fields remaining`),
+    );
+  });
+
+  it("explains itself when the document has no fields at all", () => {
+    render(<DownloadButton documentDetail={{ ...TEST_DOCUMENT, fields: [] }} values={{}} />);
+    expect(screen.getByRole("button")).toHaveAttribute(
+      "title",
+      "This document has no fields to fill in.",
+    );
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("does not render a real download link when incomplete", () => {

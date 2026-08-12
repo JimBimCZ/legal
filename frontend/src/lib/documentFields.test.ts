@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fieldDisplayValue, isDocumentComplete } from "@/lib/documentFields";
+import { fieldDisplayValue, isDocumentComplete, unfilledFieldCount } from "@/lib/documentFields";
 import { TEST_DOCUMENT } from "@/lib/documentTestFixtures";
 
 describe("fieldDisplayValue", () => {
@@ -47,6 +47,31 @@ describe("isDocumentComplete", () => {
   });
 
   it("is false when a document has no fields at all", () => {
+    expect(isDocumentComplete([], {})).toBe(false);
+  });
+});
+
+describe("unfilledFieldCount", () => {
+  it("counts every blank field", () => {
+    expect(unfilledFieldCount(TEST_DOCUMENT.fields, {})).toBe(TEST_DOCUMENT.fields.length);
+  });
+
+  it("ignores fields that have a value", () => {
+    expect(unfilledFieldCount(TEST_DOCUMENT.fields, { customer: "Acme Inc." })).toBe(
+      TEST_DOCUMENT.fields.length - 1,
+    );
+  });
+
+  it("counts a whitespace-only value as unfilled", () => {
+    expect(unfilledFieldCount(TEST_DOCUMENT.fields, { customer: "   " })).toBe(
+      TEST_DOCUMENT.fields.length,
+    );
+  });
+
+  it("is zero for a document with no fields, which isDocumentComplete still rejects", () => {
+    // The two intentionally disagree here: nothing is left to fill in, but a
+    // field-less document is still not downloadable.
+    expect(unfilledFieldCount([], {})).toBe(0);
     expect(isDocumentComplete([], {})).toBe(false);
   });
 });
