@@ -147,7 +147,10 @@ export default function Home() {
   return (
     <div className="flex flex-1 flex-col bg-canvas">
       <header className="border-b border-navy-950 bg-navy-950 px-6 py-5">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+        {/* Three columns rather than justify-between so the download button is
+            optically centred in the masthead regardless of how wide the title
+            block or the signed-in email happen to be. */}
+        <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4">
           <div>
             <h1 className="font-display text-xl tracking-tight text-white">
               Legal Document Creator
@@ -158,7 +161,12 @@ export default function Home() {
                 : "Choose a document type, then chat with the AI assistant to fill it in."}
             </p>
           </div>
-          <div className="flex items-center gap-5">
+          <div className="justify-self-center">
+            {view === "creator" && documentDetail && (
+              <DownloadButton documentDetail={documentDetail} values={fields} />
+            )}
+          </div>
+          <div className="flex items-center justify-self-end gap-5">
             {view === "creator" && (
               <button type="button" onClick={handleBackToDashboard} className={linkButtonClassName}>
                 My Documents
@@ -222,11 +230,6 @@ export default function Home() {
                   ) : documentError ? (
                     <p className="text-sm text-red-600 dark:text-red-400">{documentError}</p>
                   ) : null}
-                </div>
-              )}
-              {documentDetail && (
-                <div className="flex justify-end">
-                  <DownloadButton documentDetail={documentDetail} values={fields} />
                 </div>
               )}
             </section>
