@@ -25,7 +25,7 @@ export function DocumentPreview({ documentDetail, values }: DocumentPreviewProps
         {documentDetail.fields.map((field) => {
           const { text, filled } = fieldDisplayValue(field.key, documentDetail.fields, values);
           return (
-            <div key={field.key} className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:gap-4">
+            <div key={field.key} className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-4">
               <dt className="w-48 shrink-0 text-ink-muted">{field.label}</dt>
               <dd className={filled ? "font-medium text-ink" : blankClassName}>{text}</dd>
             </div>

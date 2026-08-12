@@ -13,7 +13,7 @@ const inputClassName =
   "w-full rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink shadow-sm placeholder:text-ink-muted/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
 const submitClassName =
-  "inline-flex items-center justify-center rounded-sm bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-500/50";
+  "inline-flex items-center justify-center rounded-sm bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-500/50";
 
 export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -48,7 +48,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           <h1 className="font-display text-2xl tracking-tight text-heading">
             Legal Document Creator
           </h1>
-          <p className="mt-1.5 font-mono text-xs uppercase tracking-widest text-ink-muted">
+          <p className="mt-2 font-mono text-xs uppercase tracking-widest text-ink-muted">
             {mode === "signin" ? "Sign in to your account" : "Create an account to get started"}
           </p>
         </div>

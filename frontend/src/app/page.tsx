@@ -205,15 +205,12 @@ export default function Home() {
               aria-labelledby="document-preview-heading"
               className="flex flex-col gap-4 lg:sticky lg:top-8 lg:self-start"
             >
-              <div className="flex items-center justify-between">
-                <h2
-                  id="document-preview-heading"
-                  className="font-mono text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-500"
-                >
-                  Document Preview
-                </h2>
-                {documentDetail && <DownloadButton documentDetail={documentDetail} values={fields} />}
-              </div>
+              <h2
+                id="document-preview-heading"
+                className="font-mono text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-500"
+              >
+                Document Preview
+              </h2>
               {documentDetail ? (
                 <DocumentPreview documentDetail={documentDetail} values={fields} />
               ) : (
@@ -225,6 +222,11 @@ export default function Home() {
                   ) : documentError ? (
                     <p className="text-sm text-red-600 dark:text-red-400">{documentError}</p>
                   ) : null}
+                </div>
+              )}
+              {documentDetail && (
+                <div className="flex justify-end">
+                  <DownloadButton documentDetail={documentDetail} values={fields} />
                 </div>
               )}
             </section>

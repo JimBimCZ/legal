@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import { sendDocumentMessage } from "@/lib/savedDocumentsApi";
 import type { ChatMessage, DocumentFields } from "@/types/document";
@@ -35,6 +35,12 @@ export function DocumentChat({
   // only persists a turn once the AI call succeeds, so a failed attempt
   // never left anything behind to duplicate.
   const [pendingContent, setPendingContent] = useState<string | null>(null);
+  const logRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const log = logRef.current;
+    if (log) log.scrollTop = log.scrollHeight;
+  }, [messages, isLoading]);
 
   async function sendTurn(content: string) {
     setIsLoading(true);
@@ -76,7 +82,12 @@ export function DocumentChat({
 
   return (
     <div className="flex flex-col gap-3 rounded-sm border border-line bg-paper p-4 shadow-sm">
-      <div role="log" aria-live="polite" className="flex max-h-96 flex-col gap-3 overflow-y-auto">
+      <div
+        ref={logRef}
+        role="log"
+        aria-live="polite"
+        className="flex max-h-96 flex-col gap-3 overflow-y-auto"
+      >
         {messages.map((message, index) => (
           <div
             key={index}
