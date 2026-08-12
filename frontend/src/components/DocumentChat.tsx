@@ -2,24 +2,15 @@
 
 import { useState, type Dispatch, type SetStateAction } from "react";
 
-import { sendChatMessage, type ChatMessage } from "@/lib/chatApi";
-import type { DocumentFields } from "@/types/document";
+import { sendDocumentMessage } from "@/lib/savedDocumentsApi";
+import type { ChatMessage, DocumentFields } from "@/types/document";
 
 interface DocumentChatProps {
-  selectedDocument: string | null;
-  selectedDocumentName: string | null;
-  fields: DocumentFields;
+  savedDocumentId: number;
+  initialMessages: ChatMessage[];
+  currentDocumentTypeId: string;
   onFieldsChange: Dispatch<SetStateAction<DocumentFields>>;
-  onDocumentSelected: (documentId: string, documentName: string) => void;
-}
-
-function greeting(selectedDocumentName: string | null): ChatMessage {
-  return {
-    role: "assistant",
-    content: selectedDocumentName
-      ? `Great, let's fill in your ${selectedDocumentName}. Tell me a bit about it and I'll take it from there.`
-      : "Hi! Tell me what kind of legal document you're looking to create, and I'll help you put it together.",
-  };
+  onDocumentTypeChanged: (documentTypeId: string, documentTypeName: string) => void;
 }
 
 const inputClassName =
@@ -29,49 +20,34 @@ const sendButtonClassName =
   "inline-flex items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:disabled:bg-zinc-700";
 
 export function DocumentChat({
-  selectedDocument,
-  selectedDocumentName,
-  fields,
+  savedDocumentId,
+  initialMessages,
+  currentDocumentTypeId,
   onFieldsChange,
-  onDocumentSelected,
+  onDocumentTypeChanged,
 }: DocumentChatProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([greeting(selectedDocumentName)]);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The content of the turn currently in flight (or last failed), so Retry
+  // can resend it without re-appending a duplicate user bubble - the server
+  // only persists a turn once the AI call succeeds, so a failed attempt
+  // never left anything behind to duplicate.
+  const [pendingContent, setPendingContent] = useState<string | null>(null);
 
-  async function sendTurn(messagesToSend: ChatMessage[]) {
+  async function sendTurn(content: string) {
     setIsLoading(true);
     setError(null);
-    // Snapshots of what we told the AI was already selected/known, so the
-    // response can be handled as a diff against them rather than blindly
-    // overwriting state — a document switch triggered elsewhere while this
-    // request is in flight shouldn't be silently discarded when it lands.
-    const sentDocument = selectedDocument;
-    const sentFields = fields;
+    setPendingContent(content);
     try {
-      const result = await sendChatMessage(messagesToSend, sentDocument, sentFields);
+      const result = await sendDocumentMessage(savedDocumentId, content);
       setMessages((current) => [...current, { role: "assistant", content: result.reply }]);
-
-      if (result.selectedDocument !== sentDocument) {
-        // A document was newly selected, or the conversation switched to a
-        // different one — either way, field collection starts fresh, since
-        // the previous document's field values don't apply to the new one.
-        onFieldsChange({});
-        if (result.selectedDocument && result.selectedDocumentName) {
-          onDocumentSelected(result.selectedDocument, result.selectedDocumentName);
-        }
-      } else if (result.selectedDocument) {
-        onFieldsChange((current) => {
-          const merged = { ...current };
-          for (const key of Object.keys(result.fields)) {
-            if (result.fields[key] !== sentFields[key]) {
-              merged[key] = result.fields[key];
-            }
-          }
-          return merged;
-        });
+      onFieldsChange(result.fields);
+      if (result.selectedDocument !== currentDocumentTypeId) {
+        onDocumentTypeChanged(result.selectedDocument, result.selectedDocumentName);
       }
+      setPendingContent(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -82,14 +58,13 @@ export function DocumentChat({
   function handleSend() {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
-    const nextMessages = [...messages, { role: "user", content: trimmed } as ChatMessage];
-    setMessages(nextMessages);
+    setMessages((current) => [...current, { role: "user", content: trimmed }]);
     setInput("");
-    void sendTurn(nextMessages);
+    void sendTurn(trimmed);
   }
 
   function handleRetry() {
-    void sendTurn(messages);
+    if (pendingContent) void sendTurn(pendingContent);
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {

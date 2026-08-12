@@ -10,6 +10,26 @@ CREATE TABLE users (
     hashed_password TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE saved_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    document_type_id TEXT NOT NULL,
+    document_type_name TEXT NOT NULL,
+    fields_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_saved_documents_user_id ON saved_documents(user_id);
+
+CREATE TABLE chat_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id INTEGER NOT NULL REFERENCES saved_documents(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_chat_messages_document_id ON chat_messages(document_id);
 """
 
 
@@ -23,7 +43,7 @@ def init_db() -> None:
         db_path.unlink()
     conn = sqlite3.connect(db_path)
     try:
-        conn.execute(SCHEMA_SQL)
+        conn.executescript(SCHEMA_SQL)
         conn.commit()
     finally:
         conn.close()
@@ -32,6 +52,7 @@ def init_db() -> None:
 def get_connection() -> Iterator[sqlite3.Connection]:
     conn = sqlite3.connect(get_db_path())
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     try:
         yield conn
     finally:

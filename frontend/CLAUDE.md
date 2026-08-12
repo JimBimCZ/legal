@@ -92,10 +92,26 @@ Backend available at http://localhost:8000
 - `page.tsx`'s `handleDocumentSelected` guards against out-of-order `fetchDocumentDetail` responses (via a `useRef` selection counter) so a stale fetch from a document the user has already switched away from can't clobber newer state
 - Still no auth or document persistence - unchanged from LEG-6
 
+### (LEG-8) Multi-User Functionality
+- Real session auth: `signup`/`signin` now set an HTTP-only, signed session cookie (`backend/app/session.py`, `itsdangerous`, 7-day expiry) instead of just returning the user record; new `GET /api/auth/me` (current user or 401) and `POST /api/auth/logout` (clears the cookie). `backend/app/deps.py`'s `get_current_user` dependency verifies the cookie and re-loads the user row on every request (so a cookie that outlives a DB wipe is cleanly rejected, not trusted) - every route except `/api/auth/*` and `/api/health` now requires it, including the two catalog routes and the legacy `/api/chat`
+- The whole app is now auth-gated: `frontend/src/app/page.tsx` is a `loading → auth → dashboard → creator` client-side state machine (no new Next.js routes - the static export has no middleware, so this stays consistent with every prior ticket's single-page approach). New `AuthScreen` (signin/signup form) and `Dashboard` (lists the user's saved documents, reuses the existing `DocumentMenu` to start a new one) components
+- Documents are now persisted server-side per user instead of living only in frontend React state: two new tables, `saved_documents` (one row per in-progress document: owner, catalog type, current field values) and `chat_messages` (append-only, one row per turn). A user can have multiple documents in progress at once and resume any of them from the dashboard
+- Chat history is now server-authoritative, replacing the old client-resends-everything design: the frontend's `DocumentChat` sends only the new message's text to `POST /api/saved-documents/{id}/messages`; the backend loads persisted history, calls the existing unmodified `run_chat_turn` from `document_chat.py`, and - only once the LLM call succeeds - inserts both the user message and the assistant reply and updates the stored fields in one commit. A failed turn persists nothing, so `DocumentChat`'s retry just resends the same content with no risk of a duplicate message. This also let `DocumentChat` drop the old diff-merge-against-`sentFields` logic from LEG-5/LEG-7, since the server is now the sole writer of `fields` and each response fully replaces it
+- Ownership is enforced by scoping every `saved_documents`/`chat_messages` query to the caller's `user_id`; a mismatched or missing id returns 404 either way, matching the existing signin error's "don't leak information" philosophy
+- Old `POST /api/chat` (full-history-per-call) is unchanged in shape and still works (now auth-gated) but is no longer called by this frontend - left in place unedited, same as `document_chat.py`'s document-selection branch has been since LEG-7
+- The SQLite DB is still wiped and recreated on every process start (unchanged, pre-existing `init_db()` behavior) - saved documents and accounts persist for the life of a running container, not across a restart/redeploy; flagged as a fast-follow, out of scope here
+- Removed the now-orphaned `DocumentPlaceholder` component and the now-unused `chatApi.ts` client (superseded by `savedDocumentsApi.ts`)
+
 ### Current API Endpoints
-- `POST /api/auth/signup` - Create new user account
-- `POST /api/auth/signin` - Verify credentials, return user record (no session/JWT)
-- `POST /api/chat` - Freeform AI chat turn; before a document is selected it helps the user pick one of the 11 catalog documents, then collects that document's fields - returns the assistant's reply, the selected document (if any), and its current understanding of all of that document's fields
+- `POST /api/auth/signup` - Create account, set session cookie, return user record
+- `POST /api/auth/signin` - Verify credentials, set session cookie, return user record
+- `POST /api/auth/logout` - Clear the session cookie
+- `GET /api/auth/me` - Current authenticated user, or 401
+- `GET /api/saved-documents` - List the current user's saved documents (id, catalog type, timestamps)
+- `POST /api/saved-documents` - Create a new saved document for the current user from a catalog type id; seeds the greeting message
+- `GET /api/saved-documents/{id}` - Full detail (fields + chat history) for one of the current user's saved documents; 404 if missing or not owned
+- `POST /api/saved-documents/{id}/messages` - Send a chat message for a saved document; persists the turn and returns the assistant's reply, resolved document type, and updated fields
+- `POST /api/chat` - (Auth-gated, legacy/unused by this frontend since LEG-8) Freeform AI chat turn; before a document is selected it helps the user pick one of the 11 catalog documents, then collects that document's fields - returns the assistant's reply, the selected document (if any), and its current understanding of all of that document's fields
 - `GET /api/documents` - List the 11 available document types from the catalog
 - `GET /api/documents/{document_id}` - Parsed detail for one document type (fields + numbered content blocks) for rendering the form/preview/PDF
 - `GET /api/health` - Health check

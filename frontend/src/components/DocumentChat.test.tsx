@@ -4,51 +4,38 @@ import { useState } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import { DocumentChat } from "@/components/DocumentChat";
-import type { DocumentFields } from "@/types/document";
+import type { ChatMessage, DocumentFields } from "@/types/document";
 
-const { sendChatMessage } = vi.hoisted(() => ({ sendChatMessage: vi.fn() }));
+const { sendDocumentMessage } = vi.hoisted(() => ({ sendDocumentMessage: vi.fn() }));
 
-vi.mock("@/lib/chatApi", () => ({ sendChatMessage }));
+vi.mock("@/lib/savedDocumentsApi", () => ({ sendDocumentMessage }));
 
 beforeEach(() => {
-  sendChatMessage.mockReset();
+  sendDocumentMessage.mockReset();
 });
 
-/** Mirrors how the real Home page wires state, so selection/field updates accumulate like they would for a user. */
+const GREETING: ChatMessage = { role: "assistant", content: "Great, let's fill in your NDA." };
+
+/** Mirrors how the real Home page wires state, so field/type updates accumulate like they would for a user. */
 function StatefulChat({
-  initialSelectedDocument = null,
-  initialSelectedDocumentName = null,
-  initialFields = {},
-  onDocumentSelected = () => {},
+  currentDocumentTypeId = "Mutual-NDA.md",
+  initialMessages = [GREETING],
+  onDocumentTypeChanged = () => {},
 }: {
-  initialSelectedDocument?: string | null;
-  initialSelectedDocumentName?: string | null;
-  initialFields?: DocumentFields;
-  onDocumentSelected?: (id: string, name: string) => void;
+  currentDocumentTypeId?: string;
+  initialMessages?: ChatMessage[];
+  onDocumentTypeChanged?: (id: string, name: string) => void;
 }) {
-  const [selectedDocument, setSelectedDocument] = useState(initialSelectedDocument);
-  const [selectedDocumentName, setSelectedDocumentName] = useState(initialSelectedDocumentName);
-  const [fields, setFields] = useState<DocumentFields>(initialFields);
+  const [fields, setFields] = useState<DocumentFields>({});
   return (
     <>
       <DocumentChat
-        selectedDocument={selectedDocument}
-        selectedDocumentName={selectedDocumentName}
-        fields={fields}
+        savedDocumentId={42}
+        initialMessages={initialMessages}
+        currentDocumentTypeId={currentDocumentTypeId}
         onFieldsChange={setFields}
-        onDocumentSelected={(id, name) => {
-          setSelectedDocument(id);
-          setSelectedDocumentName(name);
-          onDocumentSelected(id, name);
-        }}
+        onDocumentTypeChanged={onDocumentTypeChanged}
       />
-      <button
-        type="button"
-        onClick={() => setFields((current) => ({ ...current, other: "Manually Edited" }))}
-      >
-        Simulate manual edit
-      </button>
-      <div data-testid="selected-document">{selectedDocument ?? ""}</div>
       <div data-testid="fields-snapshot">{JSON.stringify(fields)}</div>
     </>
   );
@@ -59,161 +46,93 @@ function snapshotFields(): DocumentFields {
 }
 
 describe("DocumentChat", () => {
-  it("shows a static greeting on load without calling the API", () => {
+  it("renders the seeded initial messages without calling the API", () => {
     render(<StatefulChat />);
-    expect(screen.getByText(/what kind of legal document/)).toBeInTheDocument();
-    expect(sendChatMessage).not.toHaveBeenCalled();
+    expect(screen.getByText("Great, let's fill in your NDA.")).toBeInTheDocument();
+    expect(sendDocumentMessage).not.toHaveBeenCalled();
   });
 
-  it("sends the current selectedDocument and fields along with the message", async () => {
+  it("sends the message content to the saved document's endpoint", async () => {
     const user = userEvent.setup();
-    sendChatMessage.mockResolvedValue({
+    sendDocumentMessage.mockResolvedValue({
       reply: "Got it.",
-      selectedDocument: null,
-      selectedDocumentName: null,
-      fields: {},
-    });
-
-    render(<StatefulChat />);
-    await user.type(screen.getByLabelText("Message"), "I need an NDA{enter}");
-
-    expect(sendChatMessage).toHaveBeenCalledWith(
-      expect.arrayContaining([{ role: "user", content: "I need an NDA" }]),
-      null,
-      {},
-    );
-  });
-
-  it("selects a document and notifies the parent when the model resolves one", async () => {
-    const user = userEvent.setup();
-    const onDocumentSelected = vi.fn();
-    sendChatMessage.mockResolvedValue({
-      reply: "A Mutual NDA it is!",
       selectedDocument: "Mutual-NDA.md",
       selectedDocumentName: "Mutual Non-Disclosure Agreement",
       fields: {},
+      updatedAt: "2026-01-01 00:00:00",
     });
 
-    render(<StatefulChat onDocumentSelected={onDocumentSelected} />);
+    render(<StatefulChat />);
     await user.type(screen.getByLabelText("Message"), "I need an NDA{enter}");
 
-    expect(await screen.findByText("A Mutual NDA it is!")).toBeInTheDocument();
-    expect(onDocumentSelected).toHaveBeenCalledWith(
-      "Mutual-NDA.md",
-      "Mutual Non-Disclosure Agreement",
-    );
-    expect(screen.getByTestId("selected-document")).toHaveTextContent("Mutual-NDA.md");
+    expect(sendDocumentMessage).toHaveBeenCalledWith(42, "I need an NDA");
   });
 
-  it("shows a document-specific greeting when a document is already selected", () => {
-    render(
-      <StatefulChat
-        initialSelectedDocument="Mutual-NDA.md"
-        initialSelectedDocumentName="Mutual Non-Disclosure Agreement"
-      />,
-    );
-    expect(
-      screen.getByText(/let's fill in your Mutual Non-Disclosure Agreement/),
-    ).toBeInTheDocument();
-    expect(sendChatMessage).not.toHaveBeenCalled();
-  });
-
-  it("leaves the document unselected when the model is still clarifying", async () => {
+  it("appends the assistant reply and replaces the fields with the response", async () => {
     const user = userEvent.setup();
-    const onDocumentSelected = vi.fn();
-    sendChatMessage.mockResolvedValue({
-      reply: "What kind of agreement do you need?",
-      selectedDocument: null,
-      selectedDocumentName: null,
-      fields: {},
-    });
-
-    render(<StatefulChat onDocumentSelected={onDocumentSelected} />);
-    await user.type(screen.getByLabelText("Message"), "I need a document{enter}");
-
-    await screen.findByText("What kind of agreement do you need?");
-    expect(onDocumentSelected).not.toHaveBeenCalled();
-    expect(screen.getByTestId("selected-document")).toHaveTextContent("");
-  });
-
-  it("merges the AI's changed fields onto the latest state for the same document", async () => {
-    const user = userEvent.setup();
-    sendChatMessage.mockResolvedValue({
+    sendDocumentMessage.mockResolvedValue({
       reply: "Got it, who's the second party?",
       selectedDocument: "Mutual-NDA.md",
       selectedDocumentName: "Mutual Non-Disclosure Agreement",
       fields: { party1Name: "Acme Inc." },
+      updatedAt: "2026-01-01 00:00:00",
     });
 
-    render(<StatefulChat initialSelectedDocument="Mutual-NDA.md" initialFields={{}} />);
+    render(<StatefulChat />);
     await user.type(screen.getByLabelText("Message"), "The first party is Acme Inc.{enter}");
 
     await screen.findByText("Got it, who's the second party?");
-    expect(snapshotFields().party1Name).toBe("Acme Inc.");
+    expect(snapshotFields()).toEqual({ party1Name: "Acme Inc." });
   });
 
-  it("preserves a manual edit made while the request is in flight", async () => {
+  it("notifies the parent when the response resolves a different document type", async () => {
     const user = userEvent.setup();
-    let resolveRequest!: (value: unknown) => void;
-    sendChatMessage.mockReturnValue(
-      new Promise((resolve) => {
-        resolveRequest = resolve;
-      }),
-    );
-
-    render(<StatefulChat initialSelectedDocument="Mutual-NDA.md" initialFields={{}} />);
-    await user.type(screen.getByLabelText("Message"), "The first party is Acme Inc.{enter}");
-
-    await user.click(screen.getByRole("button", { name: "Simulate manual edit" }));
-    expect(snapshotFields().other).toBe("Manually Edited");
-
-    resolveRequest({
-      reply: "Got it",
-      selectedDocument: "Mutual-NDA.md",
-      selectedDocumentName: "Mutual Non-Disclosure Agreement",
-      fields: { party1Name: "Acme Inc." },
-    });
-    await screen.findByText("Got it");
-
-    const fields = snapshotFields();
-    expect(fields.party1Name).toBe("Acme Inc.");
-    expect(fields.other).toBe("Manually Edited");
-  });
-
-  it("resets fields and re-selects when the conversation switches to a different document", async () => {
-    const user = userEvent.setup();
-    const onDocumentSelected = vi.fn();
-    sendChatMessage.mockResolvedValue({
+    const onDocumentTypeChanged = vi.fn();
+    sendDocumentMessage.mockResolvedValue({
       reply: "Switching you to a Data Processing Agreement.",
       selectedDocument: "DPA.md",
       selectedDocumentName: "Data Processing Agreement",
-      // Backend always returns {} on a switch turn (stale-schema fields aren't trustworthy),
-      // but the frontend shouldn't rely on that alone - it should reset regardless.
       fields: {},
+      updatedAt: "2026-01-01 00:00:00",
     });
 
     render(
-      <StatefulChat
-        initialSelectedDocument="CSA.md"
-        initialFields={{ customer: "Acme Inc." }}
-        onDocumentSelected={onDocumentSelected}
-      />,
+      <StatefulChat currentDocumentTypeId="Mutual-NDA.md" onDocumentTypeChanged={onDocumentTypeChanged} />,
     );
     await user.type(screen.getByLabelText("Message"), "Actually, I need a DPA instead.{enter}");
 
     await screen.findByText("Switching you to a Data Processing Agreement.");
-    expect(onDocumentSelected).toHaveBeenCalledWith("DPA.md", "Data Processing Agreement");
-    expect(screen.getByTestId("selected-document")).toHaveTextContent("DPA.md");
-    expect(snapshotFields()).toEqual({});
+    expect(onDocumentTypeChanged).toHaveBeenCalledWith("DPA.md", "Data Processing Agreement");
+  });
+
+  it("does not notify the parent when the resolved document type is unchanged", async () => {
+    const user = userEvent.setup();
+    const onDocumentTypeChanged = vi.fn();
+    sendDocumentMessage.mockResolvedValue({
+      reply: "Got it.",
+      selectedDocument: "Mutual-NDA.md",
+      selectedDocumentName: "Mutual Non-Disclosure Agreement",
+      fields: {},
+      updatedAt: "2026-01-01 00:00:00",
+    });
+
+    render(
+      <StatefulChat currentDocumentTypeId="Mutual-NDA.md" onDocumentTypeChanged={onDocumentTypeChanged} />,
+    );
+    await user.type(screen.getByLabelText("Message"), "Hello{enter}");
+
+    await screen.findByText("Got it.");
+    expect(onDocumentTypeChanged).not.toHaveBeenCalled();
   });
 
   it("clears the input after sending", async () => {
     const user = userEvent.setup();
-    sendChatMessage.mockResolvedValue({
+    sendDocumentMessage.mockResolvedValue({
       reply: "Thanks!",
-      selectedDocument: null,
-      selectedDocumentName: null,
+      selectedDocument: "Mutual-NDA.md",
+      selectedDocumentName: "Mutual Non-Disclosure Agreement",
       fields: {},
+      updatedAt: "2026-01-01 00:00:00",
     });
 
     render(<StatefulChat />);
@@ -229,18 +148,19 @@ describe("DocumentChat", () => {
 
     await user.type(screen.getByLabelText("Message"), "   {enter}");
 
-    expect(sendChatMessage).not.toHaveBeenCalled();
+    expect(sendDocumentMessage).not.toHaveBeenCalled();
   });
 
-  it("shows an error with a retry option when the request fails, and retry resends it", async () => {
+  it("shows an error with a retry option when the request fails, and retry resends the same content", async () => {
     const user = userEvent.setup();
-    sendChatMessage
+    sendDocumentMessage
       .mockRejectedValueOnce(new Error("Failed to reach the AI assistant. Please try again."))
       .mockResolvedValueOnce({
         reply: "Welcome back",
-        selectedDocument: null,
-        selectedDocumentName: null,
+        selectedDocument: "Mutual-NDA.md",
+        selectedDocumentName: "Mutual Non-Disclosure Agreement",
         fields: {},
+        updatedAt: "2026-01-01 00:00:00",
       });
 
     render(<StatefulChat />);
@@ -253,13 +173,16 @@ describe("DocumentChat", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByText("Welcome back")).toBeInTheDocument();
-    expect(sendChatMessage).toHaveBeenCalledTimes(2);
+    expect(sendDocumentMessage).toHaveBeenCalledTimes(2);
+    expect(sendDocumentMessage).toHaveBeenNthCalledWith(2, 42, "Hello");
+    // Only one user bubble - retry must not append a duplicate.
+    expect(screen.getAllByText("Hello")).toHaveLength(1);
   });
 
   it("disables the send button while a request is in flight", async () => {
     const user = userEvent.setup();
     let resolveRequest!: (value: unknown) => void;
-    sendChatMessage.mockReturnValue(
+    sendDocumentMessage.mockReturnValue(
       new Promise((resolve) => {
         resolveRequest = resolve;
       }),
@@ -271,7 +194,13 @@ describe("DocumentChat", () => {
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
     expect(screen.getByText("Thinking…")).toBeInTheDocument();
 
-    resolveRequest({ reply: "Done", selectedDocument: null, selectedDocumentName: null, fields: {} });
+    resolveRequest({
+      reply: "Done",
+      selectedDocument: "Mutual-NDA.md",
+      selectedDocumentName: "Mutual Non-Disclosure Agreement",
+      fields: {},
+      updatedAt: "2026-01-01 00:00:00",
+    });
     expect(await screen.findByText("Done")).toBeInTheDocument();
   });
 });

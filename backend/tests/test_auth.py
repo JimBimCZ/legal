@@ -11,6 +11,16 @@ def test_signup_success(client):
     assert "hashed_password" not in body
 
 
+def test_signup_sets_session_cookie(client):
+    response = client.post(
+        "/api/auth/signup", json={"email": "cookie@example.com", "password": "password123"}
+    )
+    assert "session" in response.cookies
+    me = client.get("/api/auth/me")
+    assert me.status_code == 200
+    assert me.json()["email"] == "cookie@example.com"
+
+
 def test_signup_duplicate_email_rejected(client):
     client.post("/api/auth/signup", json={"email": "dup@example.com", "password": "password123"})
     response = client.post(
@@ -67,3 +77,30 @@ def test_signin_wrong_password_and_unknown_email_give_same_error_detail(client):
         "/api/auth/signin", json={"email": "nobody@example.com", "password": "password123"}
     )
     assert wrong_password.json()["detail"] == unknown_email.json()["detail"]
+
+
+def test_signin_sets_session_cookie(client):
+    client.post("/api/auth/signup", json={"email": "signincookie@example.com", "password": "password123"})
+    client.cookies.clear()
+    response = client.post(
+        "/api/auth/signin", json={"email": "signincookie@example.com", "password": "password123"}
+    )
+    assert "session" in response.cookies
+
+
+def test_me_requires_authentication(client):
+    response = client.get("/api/auth/me")
+    assert response.status_code == 401
+
+
+def test_me_returns_current_user(authed_client):
+    response = authed_client.get("/api/auth/me")
+    assert response.status_code == 200
+    assert response.json()["email"] == "authed@example.com"
+
+
+def test_logout_clears_session(authed_client):
+    assert authed_client.get("/api/auth/me").status_code == 200
+    logout = authed_client.post("/api/auth/logout")
+    assert logout.status_code == 204
+    assert authed_client.get("/api/auth/me").status_code == 401

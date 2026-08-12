@@ -28,3 +28,8 @@ export interface DocumentDetail extends DocumentSummary {
 
 /** Field values keyed by FieldDef.key, for whichever document is currently selected. */
 export type DocumentFields = Record<string, string>;
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
