@@ -2,12 +2,12 @@
 
 import { PDFDownloadLink } from "@react-pdf/renderer";
 
-import { isNdaComplete } from "@/lib/buildDocument";
-import { NdaPdfDocument } from "@/components/NdaPdfDocument";
-import type { MutualNdaFields } from "@/types/nda";
+import { DocumentPdf } from "@/components/DocumentPdf";
+import { isDocumentComplete } from "@/lib/documentFields";
+import type { DocumentDetail, DocumentFields } from "@/types/document";
 
 function slugify(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "party";
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "document";
 }
 
 const buttonClassName =
@@ -16,23 +16,28 @@ const buttonClassName =
 const disabledClassName =
   "inline-flex cursor-not-allowed items-center justify-center rounded-md bg-zinc-200 px-4 py-2 text-sm font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500";
 
-export function DownloadButton({ fields }: { fields: MutualNdaFields }) {
-  if (!isNdaComplete(fields)) {
+interface DownloadButtonProps {
+  documentDetail: DocumentDetail;
+  values: DocumentFields;
+}
+
+export function DownloadButton({ documentDetail, values }: DownloadButtonProps) {
+  if (!isDocumentComplete(documentDetail.fields, values)) {
     return (
       <div>
         <span className={disabledClassName}>Download PDF</span>
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-          Fill in all cover page fields to enable download.
+          Fill in all fields to enable download.
         </p>
       </div>
     );
   }
 
-  const fileName = `Mutual-NDA-${slugify(fields.party1Name)}-${slugify(fields.party2Name)}.pdf`;
+  const fileName = `${slugify(documentDetail.name)}.pdf`;
 
   return (
     <PDFDownloadLink
-      document={<NdaPdfDocument fields={fields} />}
+      document={<DocumentPdf documentDetail={documentDetail} values={values} />}
       fileName={fileName}
       className={buttonClassName}
     >

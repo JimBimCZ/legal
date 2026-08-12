@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import BACKEND_ROOT, get_static_dir
 from .db import init_db
-from .routes import auth, chat, health
+from .routes import auth, chat, documents, health
 
 # No-op if the file is absent (e.g. in the Docker image, where the key is
 # instead injected as a real env var via `docker run --env-file`).
@@ -25,6 +25,7 @@ app = FastAPI(title="Legal Platform API", lifespan=lifespan)
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(chat.router)
+app.include_router(documents.router)
 
 # Registered after the routers above so "/api/*" always wins over this
 # catch-all mount. Guarded so `uv run uvicorn` still boots standalone before

@@ -16,9 +16,12 @@ RUN uv sync --locked --no-dev
 
 COPY backend/app ./app
 COPY --from=frontend-builder /app/frontend/out ./static
+COPY catalog.json ./catalog.json
+COPY templates ./templates
 
 ENV DATABASE_PATH=/app/data/app.db
 ENV STATIC_DIR=/app/static
+ENV REPO_ROOT=/app
 
 EXPOSE 8000
 # Invoke the venv's uvicorn directly rather than `uv run` — `uv run` re-syncs

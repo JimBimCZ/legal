@@ -73,8 +73,20 @@ Backend available at http://localhost:8000
 - `OPENROUTER_API_KEY` is read from the repo-root `.env` (loaded via `python-dotenv` in `backend/app/main.py` for local/dev use) and passed into the Docker container via `--env-file` in all three start scripts - the key is never baked into the image
 - Still no auth or document persistence for the chat - conversation and field state live only in frontend React state, matching how the form has always worked
 
+### (LEG-6) All Document Types
+- Extended the chat, form, preview, and PDF download from the Mutual NDA only to all 11 templates in the catalog - the chat now has a document-selection phase before field collection: it asks the user which agreement they want (nudging them toward the closest catalog match if they ask for something unsupported), then only starts collecting fields once a document is confirmed
+- New backend template parser (`backend/app/documents.py`) turns any of the 11 Common Paper markdown templates in `templates/` into a generic `DocumentDetail` (numbered top/nested-level blocks of text/bold/field runs) by parsing the templates' `..._link` field spans and `header_2`/`header_3` heading spans - replaces the old Mutual-NDA-only hardcoded content in `mutualNdaContent.ts`/`buildDocument.ts`, both deleted. Field keys are derived from each span's label text; Mutual NDA keeps its 4 supplemental party-name/address fields since the Standard Terms text never names the parties inline
+- New `GET /api/documents` (catalog listing) and `GET /api/documents/{document_id}` (parsed detail: fields + blocks) endpoints (`backend/app/routes/documents.py`)
+- `POST /api/chat` request/response now carry `selectedDocument`/`selectedDocumentName` alongside `fields`, and `fields` is a generic `dict[str, str]` keyed by each document's own field keys instead of the old fixed `NdaFields` model; `backend/app/nda_chat.py` was replaced by `backend/app/document_chat.py` (`run_chat_turn` now branches on whether a document is already selected)
+- Frontend components renamed to be document-generic: `NdaChat`→`DocumentChat`, `NdaForm`→`DocumentFieldsForm`, `NdaPdfDocument`→`DocumentPdf`, `NdaPreview`→`DocumentPreview`; they now render off the parsed `DocumentDetail.blocks`/`fields` (new `frontend/src/types/document.ts`, `frontend/src/lib/documentFields.ts`, `frontend/src/lib/documentsApi.ts`) rather than a Mutual-NDA-shaped model
+- `frontend/src/app/page.tsx` no longer shows the form/preview until a document is selected via chat; selecting one fetches its `DocumentDetail` from `GET /api/documents/{id}` and resets `fields`
+- Docker image now also copies `catalog.json` and `templates/` into the backend runtime image (new `REPO_ROOT` env var, defaulting to the backend's parent dir, so `get_catalog_path()`/`get_templates_dir()` resolve correctly both in Docker and local dev)
+- Still no auth or document persistence - conversation, document selection, and field state all still live only in frontend React state
+
 ### Current API Endpoints
 - `POST /api/auth/signup` - Create new user account
 - `POST /api/auth/signin` - Verify credentials, return user record (no session/JWT)
-- `POST /api/chat` - Freeform AI chat turn for the Mutual NDA creator; returns the assistant's reply plus its current understanding of all cover-page fields
+- `POST /api/chat` - Freeform AI chat turn; before a document is selected it helps the user pick one of the 11 catalog documents, then collects that document's fields - returns the assistant's reply, the selected document (if any), and its current understanding of all of that document's fields
+- `GET /api/documents` - List the 11 available document types from the catalog
+- `GET /api/documents/{document_id}` - Parsed detail for one document type (fields + numbered content blocks) for rendering the form/preview/PDF
 - `GET /api/health` - Health check

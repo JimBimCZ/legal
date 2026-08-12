@@ -1,4 +1,4 @@
-import type { MutualNdaFields } from "@/types/nda";
+import type { DocumentFields } from "@/types/document";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -7,17 +7,20 @@ export interface ChatMessage {
 
 export interface ChatTurnResult {
   reply: string;
-  fields: MutualNdaFields;
+  selectedDocument: string | null;
+  selectedDocumentName: string | null;
+  fields: DocumentFields;
 }
 
 export async function sendChatMessage(
   messages: ChatMessage[],
-  fields: MutualNdaFields,
+  selectedDocument: string | null,
+  fields: DocumentFields,
 ): Promise<ChatTurnResult> {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, fields }),
+    body: JSON.stringify({ messages, selectedDocument, fields }),
   });
 
   if (!response.ok) {
