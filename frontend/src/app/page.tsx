@@ -149,30 +149,37 @@ export default function Home() {
       <header className="border-b border-navy-950 bg-navy-950 px-6 py-5">
         {/* Three columns rather than justify-between so the download button is
             optically centred in the masthead regardless of how wide the title
-            block or the signed-in email happen to be. */}
-        <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4">
+            block or the signed-in email happen to be. Narrow screens can't fit
+            all three side by side, so there the button drops to its own
+            full-width row beneath the title and actions. The switch happens at
+            `lg` rather than `sm` because the signed-in email only appears at
+            the same breakpoint - going three-wide any earlier makes the title
+            and both action links wrap. */}
+        <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto] items-center gap-x-4 gap-y-3 lg:grid-cols-[1fr_auto_1fr]">
           <div>
-            <h1 className="font-display text-xl tracking-tight text-white">
+            <h1 className="font-display text-lg tracking-tight text-white lg:text-xl">
               Legal Document Creator
             </h1>
-            <p className="mt-1 text-xs text-white/60">
+            <p className="mt-1 hidden text-xs text-white/60 lg:block">
               {view === "creator"
                 ? "Chat with the AI assistant to fill in your document."
                 : "Choose a document type, then chat with the AI assistant to fill it in."}
             </p>
           </div>
-          <div className="justify-self-center">
+          <div className="order-last col-span-2 justify-self-center lg:order-none lg:col-span-1">
             {view === "creator" && documentDetail && (
               <DownloadButton documentDetail={documentDetail} values={fields} />
             )}
           </div>
-          <div className="flex items-center justify-self-end gap-5">
+          <div className="flex items-center justify-self-end gap-3 lg:gap-5">
             {view === "creator" && (
               <button type="button" onClick={handleBackToDashboard} className={linkButtonClassName}>
                 My Documents
               </button>
             )}
-            <span className="hidden font-mono text-xs text-white/50 sm:inline">{currentUser?.email}</span>
+            {/* Held back to `xl`: at `lg` the third column has just appeared and
+                the email's width pushes both action links onto two lines. */}
+            <span className="hidden font-mono text-xs text-white/50 xl:inline">{currentUser?.email}</span>
             <button type="button" onClick={handleLogout} className={linkButtonClassName}>
               Log out
             </button>

@@ -126,7 +126,8 @@ Backend available at http://localhost:8000
 - The old inline "Fill in all fields to enable download." paragraph became a `title` tooltip that also names how many fields are left, backed by a new `unfilledFieldCount()` in `documentFields.ts`. That helper drives the hint text only - `isDocumentComplete` remains the gate, because the two intentionally disagree on a field-less document (nothing left to fill in, but still not downloadable)
 - Disabled state is a real `<button aria-disabled="true">` rather than the old inert `<span>`, so keyboard users can focus it and hear why it's blocked; `title` doubles as the accessible description, so no `sr-only` copy of the hint is needed (that would announce the reason twice)
 - No `variant` prop was added: removing the preview-column copy leaves `DownloadButton` with exactly one caller, so it was restyled in place rather than made configurable for a second placement that no longer exists
-- Known rough edge: the third header column crowds narrow (~390px) viewports - the title and the two action links each wrap to two lines. Functional but tighter than before; hiding the header subtitle below `sm` would resolve it
+- Below `lg` the masthead drops to two rows - title and actions on the first, the download button centred full-width on the second - since three columns can't fit side by side on a narrow screen. The subtitle is hidden and the title steps down to `text-lg` there too
+- The breakpoint is `lg` (not `sm`) and the signed-in email is held back further still to `xl`, because those two are what actually blow the budget: going three-wide at `sm`, or showing the email at `lg`, makes the title and both action links wrap onto two lines each. Verified at 390/640/1024/1280px
 
 ### Current API Endpoints
 - `POST /api/auth/signup` - Create account, set session cookie, return user record
