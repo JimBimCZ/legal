@@ -29,7 +29,7 @@ There is an OPENROUTER_API_KEY in the .env file in the project root.
 The entire project should be packaged into a Docker container.  
 The backend should be in backend/ and be a uv project, using FastAPI.  
 The frontend should be in frontend/  
-The database should use SQLLite and be created from scratch each time the Docker container is brought up, allowing for a users table with sign up and sign in.  
+The database should use SQLLite, allowing for a users table with sign up and sign in. The schema is created on first start if absent and then reused, and the DB file lives on a Docker named volume, so accounts and saved documents persist across container restarts and rebuilds (this supersedes the original "created from scratch each time the container is brought up" behavior, which forced users to sign up again after every restart).  
 Consider statically building the frontend and serving it via FastAPI, if that will work.  
 There should be scripts in scripts/ for:  
 ```bash
@@ -99,7 +99,7 @@ Backend available at http://localhost:8000
 - Chat history is now server-authoritative, replacing the old client-resends-everything design: the frontend's `DocumentChat` sends only the new message's text to `POST /api/saved-documents/{id}/messages`; the backend loads persisted history, calls the existing unmodified `run_chat_turn` from `document_chat.py`, and - only once the LLM call succeeds - inserts both the user message and the assistant reply and updates the stored fields in one commit. A failed turn persists nothing, so `DocumentChat`'s retry just resends the same content with no risk of a duplicate message. This also let `DocumentChat` drop the old diff-merge-against-`sentFields` logic from LEG-5/LEG-7, since the server is now the sole writer of `fields` and each response fully replaces it
 - Ownership is enforced by scoping every `saved_documents`/`chat_messages` query to the caller's `user_id`; a mismatched or missing id returns 404 either way, matching the existing signin error's "don't leak information" philosophy
 - Old `POST /api/chat` (full-history-per-call) is unchanged in shape and still works (now auth-gated) but is no longer called by this frontend - left in place unedited, same as `document_chat.py`'s document-selection branch has been since LEG-7
-- The SQLite DB is still wiped and recreated on every process start (unchanged, pre-existing `init_db()` behavior) - saved documents and accounts persist for the life of a running container, not across a restart/redeploy; flagged as a fast-follow, out of scope here
+- The SQLite DB is still wiped and recreated on every process start (unchanged, pre-existing `init_db()` behavior) - saved documents and accounts persist for the life of a running container, not across a restart/redeploy; flagged as a fast-follow, out of scope here (**resolved below - see Database Persistence**)
 - Removed the now-orphaned `DocumentPlaceholder` component and the now-unused `chatApi.ts` client (superseded by `savedDocumentsApi.ts`)
 
 ### (LEG-9) Professional Redesign
@@ -109,6 +109,15 @@ Backend available at http://localhost:8000
 - New `frontend/src/lib/documentTypeCode.ts` derives a short mono "docket code" per catalog entry (NDA, CSA, DPA, ...) keyed by filename id, shown as a chip on `DocumentMenu`/`Dashboard` cards - explicit mapping rather than derived initials, since two catalog names (Design Partner Agreement, Data Processing Agreement) would otherwise collide on "DPA"
 - App header is now a solid navy masthead across every authenticated view; purple is reserved strictly for primary/submit CTAs (sign in/up, send message, new document, download PDF) per this file's original color-scheme spec
 - Purely visual/presentational - no route, API, schema, or behavioral changes; all existing tests pass unmodified against the new markup/classes
+
+### Database Persistence
+- Resolves the fast-follow flagged in LEG-8: accounts and saved documents now survive a restart, a rebuild, and a container recreate, so a user signs up once and can sign in from then on
+- Two independent causes had to be fixed together - fixing either alone still lost the data. (1) `init_db()` unconditionally `unlink()`ed the DB file on every process start; it now runs an all-`IF NOT EXISTS` schema script against the existing file instead. (2) The DB lived in the container's writable layer at `/app/data`, which `scripts/start-*` and `scripts/stop-*` destroy via `docker rm` on every start/stop cycle; all three start scripts now mount the named volume `legal-app-data` at `/app/data`
+- No schema change and no migration path needed - the old behavior recreated the file from this same `SCHEMA_SQL` on every boot, so any pre-existing `app.db` already matches the current schema
+- For a deliberate clean slate (the old behavior on demand): `docker volume rm legal-app-data` while the container is stopped
+- `SESSION_SECRET` already defaulted to a fixed value rather than a per-boot random one, so existing session cookies stay valid across a restart too - no change needed there
+- Guarded by `test_credentials_survive_a_restart` in `backend/tests/test_auth.py`, which boots two `TestClient` lifespans against one `DATABASE_PATH` (the in-process equivalent of a restart) and asserts signin still succeeds on the second; verified to fail with 401 against the old wiping `init_db()`
+- Test isolation is unaffected: `conftest.py` points `DATABASE_PATH` at a fresh per-test `tmp_path`, so each test still starts from an empty database
 
 ### Current API Endpoints
 - `POST /api/auth/signup` - Create account, set session cookie, return user record

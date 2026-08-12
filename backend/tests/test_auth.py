@@ -1,3 +1,6 @@
+from fastapi.testclient import TestClient
+
+
 def test_signup_success(client):
     response = client.post(
         "/api/auth/signup", json={"email": "acme@example.com", "password": "password123"}
@@ -104,3 +107,26 @@ def test_logout_clears_session(authed_client):
     logout = authed_client.post("/api/auth/logout")
     assert logout.status_code == 204
     assert authed_client.get("/api/auth/me").status_code == 401
+
+
+def test_credentials_survive_a_restart(tmp_path, monkeypatch):
+    """Two app lifespans against one DATABASE_PATH == a process restart. The
+    second boot must re-use the existing database instead of recreating it,
+    otherwise every restart forces the user to sign up all over again."""
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "restart.db"))
+    monkeypatch.setenv("STATIC_DIR", str(tmp_path / "static-does-not-exist"))
+
+    from app.main import app
+
+    with TestClient(app) as first_boot:
+        signup = first_boot.post(
+            "/api/auth/signup", json={"email": "persist@example.com", "password": "password123"}
+        )
+        assert signup.status_code == 201
+
+    with TestClient(app) as second_boot:
+        signin = second_boot.post(
+            "/api/auth/signin", json={"email": "persist@example.com", "password": "password123"}
+        )
+        assert signin.status_code == 200
+        assert signin.json()["email"] == "persist@example.com"

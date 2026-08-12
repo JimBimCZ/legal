@@ -3,6 +3,10 @@ $ErrorActionPreference = "Stop"
 $ImageName = "legal-app"
 $ContainerName = "legal-app"
 $Port = 8000
+# Named volume for the SQLite database. Survives `docker rm` (which both this
+# script and stop-windows.ps1 do), so accounts and saved documents persist across
+# restarts. Remove it with `docker volume rm legal-app-data` for a clean slate.
+$DataVolume = "legal-app-data"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
@@ -31,6 +35,6 @@ if (Test-Path $EnvFilePath) {
 }
 
 Write-Host "Starting container '$ContainerName' on port $Port..."
-docker run -d --name $ContainerName @EnvFileArgs -p "${Port}:8000" $ImageName | Out-Null
+docker run -d --name $ContainerName @EnvFileArgs -v "${DataVolume}:/app/data" -p "${Port}:8000" $ImageName | Out-Null
 
 Write-Host "Backend available at http://localhost:$Port"
