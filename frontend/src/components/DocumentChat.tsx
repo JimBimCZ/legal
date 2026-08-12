@@ -3,17 +3,19 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { sendChatMessage, type ChatMessage } from "@/lib/chatApi";
-import type { MutualNdaFields, NdaFieldKey } from "@/types/nda";
+import type { DocumentFields } from "@/types/document";
 
-interface NdaChatProps {
-  fields: MutualNdaFields;
-  onFieldsChange: Dispatch<SetStateAction<MutualNdaFields>>;
+interface DocumentChatProps {
+  selectedDocument: string | null;
+  fields: DocumentFields;
+  onFieldsChange: Dispatch<SetStateAction<DocumentFields>>;
+  onDocumentSelected: (documentId: string) => void;
 }
 
 const GREETING: ChatMessage = {
   role: "assistant",
   content:
-    "Hi! I'll help you put together your Mutual NDA. Let's start with the parties — what are the names and addresses of the two companies involved?",
+    "Hi! Tell me what kind of legal document you're looking to create, and I'll help you put it together.",
 };
 
 const inputClassName =
@@ -22,7 +24,12 @@ const inputClassName =
 const sendButtonClassName =
   "inline-flex items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:disabled:bg-zinc-700";
 
-export function NdaChat({ fields, onFieldsChange }: NdaChatProps) {
+export function DocumentChat({
+  selectedDocument,
+  fields,
+  onFieldsChange,
+  onDocumentSelected,
+}: DocumentChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -31,23 +38,36 @@ export function NdaChat({ fields, onFieldsChange }: NdaChatProps) {
   async function sendTurn(messagesToSend: ChatMessage[]) {
     setIsLoading(true);
     setError(null);
-    // Snapshot of what we told the AI was already known, so the response can
-    // be merged as a diff against it rather than blindly overwriting fields —
-    // otherwise a manual edit made in the side panel while this request is in
-    // flight would be silently discarded when the response lands.
+    // Snapshots of what we told the AI was already selected/known, so the
+    // response can be handled as a diff against them rather than blindly
+    // overwriting state — a manual field edit made in the side panel (or a
+    // document switch) while this request is in flight shouldn't be
+    // silently discarded when the response lands.
+    const sentDocument = selectedDocument;
     const sentFields = fields;
     try {
-      const result = await sendChatMessage(messagesToSend, sentFields);
+      const result = await sendChatMessage(messagesToSend, sentDocument, sentFields);
       setMessages((current) => [...current, { role: "assistant", content: result.reply }]);
-      onFieldsChange((current) => {
-        const merged = { ...current };
-        for (const key of Object.keys(result.fields) as NdaFieldKey[]) {
-          if (result.fields[key] !== sentFields[key]) {
-            merged[key] = result.fields[key];
-          }
+
+      if (result.selectedDocument !== sentDocument) {
+        // A document was newly selected, or the conversation switched to a
+        // different one — either way, field collection starts fresh, since
+        // the previous document's field values don't apply to the new one.
+        onFieldsChange({});
+        if (result.selectedDocument) {
+          onDocumentSelected(result.selectedDocument);
         }
-        return merged;
-      });
+      } else if (result.selectedDocument) {
+        onFieldsChange((current) => {
+          const merged = { ...current };
+          for (const key of Object.keys(result.fields)) {
+            if (result.fields[key] !== sentFields[key]) {
+              merged[key] = result.fields[key];
+            }
+          }
+          return merged;
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -111,11 +131,11 @@ export function NdaChat({ fields, onFieldsChange }: NdaChatProps) {
       )}
 
       <div className="flex gap-2">
-        <label htmlFor="nda-chat-input" className="sr-only">
+        <label htmlFor="document-chat-input" className="sr-only">
           Message
         </label>
         <input
-          id="nda-chat-input"
+          id="document-chat-input"
           type="text"
           value={input}
           onChange={(event) => setInput(event.target.value)}

@@ -2,8 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
-from .nda_chat import NdaFields
-
 
 class SignupRequest(BaseModel):
     email: EmailStr
@@ -29,9 +27,12 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1)
-    fields: NdaFields = NdaFields()
+    selectedDocument: str | None = None
+    fields: dict[str, str] = Field(default_factory=dict)
 
 
 class ChatResponse(BaseModel):
     reply: str
-    fields: NdaFields
+    selectedDocument: str | None
+    selectedDocumentName: str | None
+    fields: dict[str, str]

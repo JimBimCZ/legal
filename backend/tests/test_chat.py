@@ -18,60 +18,132 @@ class FakeResponse:
         self.choices = [FakeChoice(content)]
 
 
+class RecordedCalls(list):
+    """A plain list of received kwargs, plus a queue of dict responses the
+    fake model should return next (one per call, in order)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.queue: list[dict] = []
+
+
 @pytest.fixture()
 def mock_completion(monkeypatch):
     """Stub out the litellm call so tests never hit the network."""
-    calls = []
+    calls = RecordedCalls()
 
     def fake_completion(**kwargs):
         calls.append(kwargs)
-        fields = {
-            "party1Name": "Acme Inc.",
-            "party1Address": "",
-            "party2Name": "",
-            "party2Address": "",
-            "effectiveDate": "",
-            "purpose": "",
-            "mndaTerm": "",
-            "termOfConfidentiality": "",
-            "governingLaw": "",
-            "jurisdiction": "",
-        }
-        content = json.dumps({"reply": "Got it, what's the other party's name?", "fields": fields})
-        return FakeResponse(content)
+        return FakeResponse(json.dumps(calls.queue.pop(0)))
 
-    monkeypatch.setattr("app.nda_chat.completion", fake_completion)
+    monkeypatch.setattr("app.document_chat.completion", fake_completion)
     return calls
 
 
-def test_chat_returns_reply_and_updated_fields(client, mock_completion):
+def test_document_selection_turn_has_no_fields_yet(client, mock_completion):
+    mock_completion.queue.append(
+        {"reply": "A Mutual NDA it is!", "selectedDocument": "Mutual Non-Disclosure Agreement"}
+    )
     response = client.post(
         "/api/chat",
-        json={"messages": [{"role": "user", "content": "The first party is Acme Inc."}]},
+        json={"messages": [{"role": "user", "content": "I need an NDA"}]},
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["reply"] == "Got it, what's the other party's name?"
-    assert body["fields"]["party1Name"] == "Acme Inc."
-    assert body["fields"]["party2Name"] == ""
+    assert body["reply"] == "A Mutual NDA it is!"
+    assert body["selectedDocument"] == "Mutual-NDA.md"
+    assert body["selectedDocumentName"] == "Mutual Non-Disclosure Agreement"
+    assert body["fields"] == {}
 
 
-def test_chat_sends_known_fields_and_history_to_the_model(client, mock_completion):
+def test_document_selection_turn_can_leave_document_unset(client, mock_completion):
+    mock_completion.queue.append({"reply": "What kind of agreement do you need?"})
+    response = client.post(
+        "/api/chat", json={"messages": [{"role": "user", "content": "I need a document"}]}
+    )
+    body = response.json()
+    assert body["selectedDocument"] is None
+    assert body["selectedDocumentName"] is None
+    assert body["fields"] == {}
+
+
+def test_hallucinated_document_name_resolves_to_no_selection(client, mock_completion):
+    mock_completion.queue.append(
+        {"reply": "Sure!", "selectedDocument": "Some Document We Do Not Have"}
+    )
+    response = client.post(
+        "/api/chat", json={"messages": [{"role": "user", "content": "I need a widget agreement"}]}
+    )
+    body = response.json()
+    assert body["selectedDocument"] is None
+
+
+def test_field_collection_turn_returns_updated_fields_for_the_selected_document(
+    client, mock_completion
+):
+    mock_completion.queue.append(
+        {
+            "reply": "Got it, who's the provider?",
+            "selectedDocument": "Cloud Service Agreement",
+            "fields": {"customer": "Acme Inc."},
+        }
+    )
+    response = client.post(
+        "/api/chat",
+        json={
+            "messages": [{"role": "user", "content": "The customer is Acme Inc."}],
+            "selectedDocument": "CSA.md",
+            "fields": {},
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["selectedDocument"] == "CSA.md"
+    assert body["fields"]["customer"] == "Acme Inc."
+    # Fields not mentioned by the mocked model default to empty, not missing.
+    assert body["fields"]["provider"] == ""
+
+
+def test_field_collection_prompt_carries_forward_known_values(client, mock_completion):
+    mock_completion.queue.append(
+        {
+            "reply": "Noted.",
+            "selectedDocument": "Cloud Service Agreement",
+            "fields": {"customer": "Acme Inc."},
+        }
+    )
     client.post(
         "/api/chat",
         json={
-            "messages": [
-                {"role": "assistant", "content": "Who are the two parties?"},
-                {"role": "user", "content": "Acme Inc. and Globex Corporation."},
-            ],
-            "fields": {"party1Name": "Acme Inc."},
+            "messages": [{"role": "user", "content": "The provider is Globex."}],
+            "selectedDocument": "CSA.md",
+            "fields": {"customer": "Acme Inc."},
         },
     )
-    assert len(mock_completion) == 1
-    sent_messages = mock_completion[0]["messages"]
-    assert sent_messages[0]["role"] == "system"
-    assert "Acme Inc." in sent_messages[0]["content"]
-    assert sent_messages[-1] == {"role": "user", "content": "Acme Inc. and Globex Corporation."}
+    system_prompt = mock_completion[0]["messages"][0]["content"]
+    assert "Acme Inc." in system_prompt
+
+
+def test_switching_documents_mid_conversation_discards_stale_fields(client, mock_completion):
+    mock_completion.queue.append(
+        {
+            "reply": "Switching you to a Data Processing Agreement.",
+            "selectedDocument": "Data Processing Agreement",
+            "fields": {"customer": "Acme Inc."},
+        }
+    )
+    response = client.post(
+        "/api/chat",
+        json={
+            "messages": [{"role": "user", "content": "Actually, I need a DPA instead."}],
+            "selectedDocument": "CSA.md",
+            "fields": {"customer": "Acme Inc."},
+        },
+    )
+    body = response.json()
+    assert body["selectedDocument"] == "DPA.md"
+    # Fields were collected against CSA's schema, not DPA's - they don't carry over.
+    assert body["fields"] == {}
 
 
 def test_chat_rejects_empty_message_list(client, mock_completion):
@@ -88,9 +160,7 @@ def test_chat_returns_502_when_llm_call_fails(client, monkeypatch):
     def failing_completion(**kwargs):
         raise RuntimeError("upstream is down")
 
-    monkeypatch.setattr("app.nda_chat.completion", failing_completion)
+    monkeypatch.setattr("app.document_chat.completion", failing_completion)
 
-    response = client.post(
-        "/api/chat", json={"messages": [{"role": "user", "content": "Hello"}]}
-    )
+    response = client.post("/api/chat", json={"messages": [{"role": "user", "content": "Hello"}]})
     assert response.status_code == 502

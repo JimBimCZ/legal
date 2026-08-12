@@ -11,3 +11,15 @@ def get_db_path() -> Path:
 
 def get_static_dir() -> Path:
     return Path(os.environ.get("STATIC_DIR", BACKEND_ROOT / "static"))
+
+
+def get_repo_root() -> Path:
+    return Path(os.environ.get("REPO_ROOT", BACKEND_ROOT.parent))
+
+
+def get_catalog_path() -> Path:
+    return get_repo_root() / "catalog.json"
+
+
+def get_templates_dir() -> Path:
+    return get_repo_root() / "templates"

@@ -1,14 +1,16 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+
+import { TEST_DOCUMENT } from "@/lib/documentTestFixtures";
 
 // Stub the PDF pipeline for this jsdom-based flow test — real PDF generation
-// (web worker + Blob URLs) is exercised separately in
-// NdaPdfDocument.test.tsx under a node environment.
+// (web worker + Blob URLs) is exercised separately in DocumentPdf.test.tsx
+// under a node environment.
 vi.mock("@react-pdf/renderer", () => ({
-  // NdaPdfDocument.tsx calls StyleSheet.create(...) at module scope, so the
-  // mock needs a working stand-in even though we never render the document.
+  // DocumentPdf.tsx calls StyleSheet.create(...) at module scope, so the mock
+  // needs a working stand-in even though we never render the document.
   StyleSheet: { create: (styles: unknown) => styles },
   Document: "document-stub",
   Page: "page-stub",
@@ -25,105 +27,148 @@ vi.mock("@react-pdf/renderer", () => ({
   ),
 }));
 
+const { sendChatMessage } = vi.hoisted(() => ({ sendChatMessage: vi.fn() }));
+const { fetchDocumentDetail } = vi.hoisted(() => ({ fetchDocumentDetail: vi.fn() }));
+
+vi.mock("@/lib/chatApi", () => ({ sendChatMessage }));
+vi.mock("@/lib/documentsApi", () => ({ fetchDocumentDetail }));
+
 const { default: Home } = await import("@/app/page");
-
-const COMPLETE_INPUT = {
-  "Party 1 Name": "Acme Inc.",
-  "Party 1 Address": "123 Main St, San Francisco, CA 94105",
-  "Party 2 Name": "Globex Corporation",
-  "Party 2 Address": "456 Market St, New York, NY 10001",
-  Purpose: "evaluating a potential business relationship",
-  "MNDA Term": "2 years from the Effective Date",
-  "Term of Confidentiality": "3 years after expiration or termination of this MNDA",
-  "Governing Law (State)": "Delaware",
-  Jurisdiction: "New Castle County, Delaware",
-};
-
-async function fillTextFields(user: ReturnType<typeof userEvent.setup>) {
-  for (const [label, value] of Object.entries(COMPLETE_INPUT)) {
-    await user.type(screen.getByLabelText(label), value);
-  }
-}
 
 function previewRegion() {
   return screen.getByRole("heading", { name: "Document Preview" }).closest("section")!;
 }
 
-describe("Home (full NDA creator flow)", () => {
-  it("renders the form and an empty-state preview with a disabled download on load", () => {
+async function selectTestDocument(user: ReturnType<typeof userEvent.setup>) {
+  sendChatMessage.mockResolvedValueOnce({
+    reply: "Sure, let's set up a Test Agreement.",
+    selectedDocument: TEST_DOCUMENT.id,
+    selectedDocumentName: TEST_DOCUMENT.name,
+    fields: {},
+  });
+  fetchDocumentDetail.mockResolvedValueOnce(TEST_DOCUMENT);
+  await user.type(screen.getByLabelText("Message"), "I need a test agreement{enter}");
+  await screen.findByRole("heading", { name: "Document Preview" });
+}
+
+beforeEach(() => {
+  sendChatMessage.mockReset();
+  fetchDocumentDetail.mockReset();
+});
+
+describe("Home (chat-driven document creator flow)", () => {
+  it("shows only the chat before a document is selected", () => {
     render(<Home />);
-    expect(screen.getByRole("heading", { name: "Mutual NDA Creator" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Party 1 Name")).toHaveValue("");
-    expect(within(previewRegion()).getByText("[Party 1 Name]")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Legal Document Creator" })).toBeInTheDocument();
+    expect(screen.getByText(/choose a document to get started/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Document Preview" })).not.toBeInTheDocument();
+  });
+
+  it("shows the form and preview once the chat selects a document", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+
+    await selectTestDocument(user);
+
+    expect(screen.getByLabelText("Customer")).toHaveValue("");
+    expect(within(previewRegion()).getAllByText("[Customer]").length).toBe(2);
     expect(screen.queryByRole("link", { name: "Download PDF" })).not.toBeInTheDocument();
-    expect(screen.getByText(/Fill in all cover page fields/)).toBeInTheDocument();
+    expect(screen.queryByText(/choose a document to get started/)).not.toBeInTheDocument();
+  });
+
+  it("shows a loading state while the selected document's details are being fetched", async () => {
+    const user = userEvent.setup();
+    let resolveFetch!: (value: typeof TEST_DOCUMENT) => void;
+    sendChatMessage.mockResolvedValueOnce({
+      reply: "One sec.",
+      selectedDocument: TEST_DOCUMENT.id,
+      selectedDocumentName: TEST_DOCUMENT.name,
+      fields: {},
+    });
+    fetchDocumentDetail.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+
+    render(<Home />);
+    await user.type(screen.getByLabelText("Message"), "I need a test agreement{enter}");
+
+    expect(await screen.findByText("Loading document…")).toBeInTheDocument();
+
+    resolveFetch(TEST_DOCUMENT);
+    await screen.findByRole("heading", { name: "Document Preview" });
+  });
+
+  it("shows an error if the selected document's details fail to load", async () => {
+    const user = userEvent.setup();
+    sendChatMessage.mockResolvedValueOnce({
+      reply: "One sec.",
+      selectedDocument: TEST_DOCUMENT.id,
+      selectedDocumentName: TEST_DOCUMENT.name,
+      fields: {},
+    });
+    fetchDocumentDetail.mockRejectedValueOnce(new Error("Failed to load the document."));
+
+    render(<Home />);
+    await user.type(screen.getByLabelText("Message"), "I need a test agreement{enter}");
+
+    expect(await screen.findByText("Failed to load the document.")).toBeInTheDocument();
   });
 
   it("reflects a single field edit live in the preview", async () => {
     const user = userEvent.setup();
     render(<Home />);
+    await selectTestDocument(user);
 
-    await user.type(screen.getByLabelText("Party 1 Name"), "Acme Inc.");
+    await user.type(screen.getByLabelText("Customer"), "Acme Inc.");
 
-    expect(within(previewRegion()).getByText("Acme Inc.")).toBeInTheDocument();
-    expect(within(previewRegion()).queryByText("[Party 1 Name]")).not.toBeInTheDocument();
-    // Other fields are untouched and still show their placeholder.
-    expect(within(previewRegion()).getByText("[Party 2 Name]")).toBeInTheDocument();
+    // "Acme Inc." appears twice: once in the Fields summary, once inline
+    // where the "Customer" field is referenced in the document body.
+    expect(within(previewRegion()).getAllByText("Acme Inc.").length).toBe(2);
+    expect(within(previewRegion()).queryByText("[Customer]")).not.toBeInTheDocument();
+    expect(within(previewRegion()).getAllByText("[Effective Date]").length).toBe(2);
   });
 
-  it("keeps the download button disabled until every field is filled", async () => {
+  it("enables the download link once every field is filled", async () => {
     const user = userEvent.setup();
     render(<Home />);
+    await selectTestDocument(user);
 
-    const entries = Object.entries(COMPLETE_INPUT);
-    for (const [label, value] of entries.slice(0, -1)) {
-      await user.type(screen.getByLabelText(label), value);
-    }
+    await user.type(screen.getByLabelText("Customer"), "Acme Inc.");
     expect(screen.queryByRole("link", { name: "Download PDF" })).not.toBeInTheDocument();
 
-    const [lastLabel, lastValue] = entries.at(-1)!;
-    await user.type(screen.getByLabelText(lastLabel), lastValue);
-    // Every text field is now filled, but Effective Date is still empty.
-    expect(screen.queryByRole("link", { name: "Download PDF" })).not.toBeInTheDocument();
-  });
-
-  it("enables the download link once every field, including the date, is filled", async () => {
-    const user = userEvent.setup();
-    render(<Home />);
-
-    await fillTextFields(user);
     await user.type(screen.getByLabelText("Effective Date"), "2026-03-05");
 
     const link = screen.getByRole("link", { name: "Download PDF" });
     expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute("data-filename", "Mutual-NDA-acme-inc-globex-corporation.pdf");
-    // "March 5, 2026" appears both in the cover page row and interpolated
-    // into Section 5's body ({{effectiveDate}}).
-    expect(within(previewRegion()).getAllByText("March 5, 2026").length).toBeGreaterThanOrEqual(1);
+    expect(link).toHaveAttribute("data-filename", "test-agreement.pdf");
   });
 
   it("disables the download link again if a previously-filled field is cleared", async () => {
     const user = userEvent.setup();
     render(<Home />);
+    await selectTestDocument(user);
 
-    await fillTextFields(user);
+    await user.type(screen.getByLabelText("Customer"), "Acme Inc.");
     await user.type(screen.getByLabelText("Effective Date"), "2026-03-05");
     expect(screen.getByRole("link", { name: "Download PDF" })).toBeInTheDocument();
 
-    await user.clear(screen.getByLabelText("Party 1 Name"));
+    await user.clear(screen.getByLabelText("Customer"));
 
     expect(screen.queryByRole("link", { name: "Download PDF" })).not.toBeInTheDocument();
-    expect(within(previewRegion()).getByText("[Party 1 Name]")).toBeInTheDocument();
+    expect(within(previewRegion()).getAllByText("[Customer]").length).toBe(2);
   });
 
   it("does not let editing one field bleed into another field's value", async () => {
     const user = userEvent.setup();
     render(<Home />);
+    await selectTestDocument(user);
 
-    await user.type(screen.getByLabelText("Party 1 Name"), "Acme Inc.");
-    await user.type(screen.getByLabelText("Party 2 Name"), "Globex Corporation");
+    await user.type(screen.getByLabelText("Customer"), "Acme Inc.");
+    await user.type(screen.getByLabelText("Effective Date"), "2026-03-05");
 
-    expect(screen.getByLabelText("Party 1 Name")).toHaveValue("Acme Inc.");
-    expect(screen.getByLabelText("Party 2 Name")).toHaveValue("Globex Corporation");
+    expect(screen.getByLabelText("Customer")).toHaveValue("Acme Inc.");
+    expect(screen.getByLabelText("Effective Date")).toHaveValue("2026-03-05");
   });
 });
