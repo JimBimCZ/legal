@@ -3,24 +3,67 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand palette per project spec: navy for headings/chrome, blue for
+     interactive elements, purple reserved for primary/submit CTAs, yellow as
+     a sparing accent. Everything else here is a supporting neutral derived
+     to sit alongside those four. */
+  --color-navy-950: #032147;
+  --color-navy-800: #0c3868;
+  --color-navy-700: #17497e;
+  --color-navy-100: #e4eaf1;
+  --color-blue-500: #209dd7;
+  --color-blue-600: #1583b3;
+  --color-purple-600: #753991;
+  --color-purple-700: #602f78;
+  --color-yellow-400: #ecad0a;
+  --color-gray-500: #888888;
+
+  --color-canvas: #f5f7fa;
+  --color-paper: #ffffff;
+  --color-line: #dfe4ea;
+  --color-ink: #10233d;
+  --color-ink-muted: var(--color-gray-500);
+  /* Headings: dark navy on the light paper/canvas surfaces this normally sits
+     on. In dark mode those surfaces are themselves dark navy, so this flips
+     to a near-white instead of staying navy-on-navy (illegible). */
+  --color-heading: var(--color-navy-950);
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --color-navy-100: #123863;
+  --color-canvas: #021530;
+  --color-paper: #0a2a4d;
+  --color-line: #17416e;
+  --color-ink: #eef2f7;
+  --color-ink-muted: #9db1c7;
+  --color-heading: #f5f8fc;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-navy-950: var(--color-navy-950);
+  --color-navy-800: var(--color-navy-800);
+  --color-navy-700: var(--color-navy-700);
+  --color-navy-100: var(--color-navy-100);
+  --color-blue-500: var(--color-blue-500);
+  --color-blue-600: var(--color-blue-600);
+  --color-purple-600: var(--color-purple-600);
+  --color-purple-700: var(--color-purple-700);
+  --color-yellow-400: var(--color-yellow-400);
+  --color-gray-500: var(--color-gray-500);
+  --color-canvas: var(--color-canvas);
+  --color-paper: var(--color-paper);
+  --color-line: var(--color-line);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-heading: var(--color-heading);
+
+  --font-display: var(--font-display);
+  --font-document: var(--font-document);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
 }

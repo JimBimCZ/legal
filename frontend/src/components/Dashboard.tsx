@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { DocumentMenu } from "@/components/DocumentMenu";
-import { cardButtonClassName, cardGridClassName } from "@/lib/cardStyles";
+import { cardButtonClassName, cardCodeClassName, cardGridClassName } from "@/lib/cardStyles";
+import { documentTypeCode } from "@/lib/documentTypeCode";
 import { fetchSavedDocuments } from "@/lib/savedDocumentsApi";
 import type { SavedDocumentSummary } from "@/types/savedDocument";
 
@@ -15,7 +16,7 @@ interface DashboardProps {
 }
 
 const newDocumentButtonClassName =
-  "inline-flex items-center justify-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900";
+  "inline-flex items-center justify-center rounded-sm bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-purple-700";
 
 export function Dashboard({ onResume, onCreateNew, refreshKey, actionError }: DashboardProps) {
   const [documents, setDocuments] = useState<SavedDocumentSummary[] | null>(null);
@@ -48,8 +49,10 @@ export function Dashboard({ onResume, onCreateNew, refreshKey, actionError }: Da
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Your Documents</h2>
+      <div className="flex items-center justify-between border-b border-line pb-4">
+        <h2 className="font-display text-2xl tracking-tight text-heading">
+          Your Documents
+        </h2>
         <button
           type="button"
           onClick={() => setShowMenu((current) => !current)}
@@ -66,11 +69,13 @@ export function Dashboard({ onResume, onCreateNew, refreshKey, actionError }: Da
       {!showMenu && loadError && <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>}
 
       {!showMenu && !loadError && !documents && (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading your documents…</p>
+        <p className="font-mono text-xs uppercase tracking-widest text-ink-muted">
+          Loading your documents…
+        </p>
       )}
 
       {!showMenu && documents && documents.length === 0 && (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-ink-muted">
           You don&apos;t have any documents yet. Click &quot;+ New Document&quot; to get started.
         </p>
       )}
@@ -84,11 +89,12 @@ export function Dashboard({ onResume, onCreateNew, refreshKey, actionError }: Da
               onClick={() => onResume(document.id)}
               className={cardButtonClassName}
             >
-              <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+              <span className={cardCodeClassName}>{documentTypeCode(document.documentTypeId)}</span>
+              <span className="font-display text-base leading-snug text-heading">
                 {document.documentTypeName}
               </span>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                Last updated {new Date(document.updatedAt).toLocaleString()}
+              <span className="font-mono text-[11px] text-ink-muted">
+                Updated {new Date(document.updatedAt).toLocaleString()}
               </span>
             </button>
           ))}

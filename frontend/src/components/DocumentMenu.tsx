@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { cardButtonClassName, cardGridClassName } from "@/lib/cardStyles";
+import { cardButtonClassName, cardCodeClassName, cardGridClassName } from "@/lib/cardStyles";
+import { documentTypeCode } from "@/lib/documentTypeCode";
 import { fetchDocumentCatalog } from "@/lib/documentsApi";
 import type { DocumentSummary } from "@/types/document";
 
@@ -35,7 +36,11 @@ export function DocumentMenu({ onSelect }: DocumentMenuProps) {
   }
 
   if (!catalog) {
-    return <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading document types…</p>;
+    return (
+      <p className="font-mono text-xs uppercase tracking-widest text-ink-muted">
+        Loading document types…
+      </p>
+    );
   }
 
   return (
@@ -47,10 +52,11 @@ export function DocumentMenu({ onSelect }: DocumentMenuProps) {
           onClick={() => onSelect(entry.id, entry.name)}
           className={cardButtonClassName}
         >
-          <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+          <span className={cardCodeClassName}>{documentTypeCode(entry.id)}</span>
+          <span className="font-display text-base leading-snug text-heading">
             {entry.name}
           </span>
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">{entry.description}</span>
+          <span className="text-xs leading-relaxed text-ink-muted">{entry.description}</span>
         </button>
       ))}
     </div>

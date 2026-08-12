@@ -102,6 +102,14 @@ Backend available at http://localhost:8000
 - The SQLite DB is still wiped and recreated on every process start (unchanged, pre-existing `init_db()` behavior) - saved documents and accounts persist for the life of a running container, not across a restart/redeploy; flagged as a fast-follow, out of scope here
 - Removed the now-orphaned `DocumentPlaceholder` component and the now-unused `chatApi.ts` client (superseded by `savedDocumentsApi.ts`)
 
+### (LEG-9) Professional Redesign
+- Replaced the default Next.js scaffolding look (Arial, Geist, zinc grays, no color) with a full token system built on the palette this file already specified but that no frontend code had ever actually used (`frontend/src/app/globals.css`): navy/blue/purple/yellow brand colors plus supporting `canvas`/`paper`/`line`/`ink`/`ink-muted`/`heading` neutrals, each redefined under `.dark` (dark mode now derives from navy rather than generic zinc-950)
+- New type system via `next/font/google` (`frontend/src/app/layout.tsx`): Libre Caslon Display for the wordmark/section headings, Libre Caslon Text (`font-document`) for the generated document's own body copy, IBM Plex Sans for UI, IBM Plex Mono for clause numbers/timestamps/doc-type codes - all self-hosted at build time, so the static export has no runtime font dependency
+- The document preview (`DocumentPreview.tsx`) is restyled as a letterhead page - navy/yellow rule under a Caslon title, bold navy-mono clause numbers, and unfilled fields shown as dotted fill-in-the-blank text instead of plain italic gray; `DocumentPdf.tsx` gets a matching treatment using react-pdf's built-in Times/Courier standard fonts (no font files to bundle, no network dependency at PDF-generation time)
+- New `frontend/src/lib/documentTypeCode.ts` derives a short mono "docket code" per catalog entry (NDA, CSA, DPA, ...) keyed by filename id, shown as a chip on `DocumentMenu`/`Dashboard` cards - explicit mapping rather than derived initials, since two catalog names (Design Partner Agreement, Data Processing Agreement) would otherwise collide on "DPA"
+- App header is now a solid navy masthead across every authenticated view; purple is reserved strictly for primary/submit CTAs (sign in/up, send message, new document, download PDF) per this file's original color-scheme spec
+- Purely visual/presentational - no route, API, schema, or behavioral changes; all existing tests pass unmodified against the new markup/classes
+
 ### Current API Endpoints
 - `POST /api/auth/signup` - Create account, set session cookie, return user record
 - `POST /api/auth/signin` - Verify credentials, set session cookie, return user record
@@ -115,3 +123,13 @@ Backend available at http://localhost:8000
 - `GET /api/documents` - List the 11 available document types from the catalog
 - `GET /api/documents/{document_id}` - Parsed detail for one document type (fields + numbered content blocks) for rendering the form/preview/PDF
 - `GET /api/health` - Health check
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

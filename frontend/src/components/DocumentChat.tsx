@@ -14,10 +14,10 @@ interface DocumentChatProps {
 }
 
 const inputClassName =
-  "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+  "w-full rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink shadow-sm placeholder:text-ink-muted/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
 const sendButtonClassName =
-  "inline-flex items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:disabled:bg-zinc-700";
+  "inline-flex items-center justify-center rounded-sm bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-500/50";
 
 export function DocumentChat({
   savedDocumentId,
@@ -75,22 +75,22 @@ export function DocumentChat({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="flex flex-col gap-3 rounded-sm border border-line bg-paper p-4 shadow-sm">
       <div role="log" aria-live="polite" className="flex max-h-96 flex-col gap-3 overflow-y-auto">
         {messages.map((message, index) => (
           <div
             key={index}
-            className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+            className={`max-w-[85%] rounded-sm px-3 py-2 text-sm leading-relaxed ${
               message.role === "assistant"
-                ? "self-start bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100"
-                : "self-end bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                ? "self-start bg-navy-100 text-ink"
+                : "self-end bg-navy-950 text-white"
             }`}
           >
             {message.content}
           </div>
         ))}
         {isLoading && (
-          <div className="self-start rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+          <div className="self-start rounded-sm bg-navy-100 px-3 py-2 font-mono text-xs uppercase tracking-widest text-ink-muted">
             Thinking…
           </div>
         )}

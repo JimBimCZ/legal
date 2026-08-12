@@ -11,10 +11,10 @@ function slugify(value: string): string {
 }
 
 const buttonClassName =
-  "inline-flex items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300";
+  "inline-flex items-center justify-center rounded-sm bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-purple-700";
 
 const disabledClassName =
-  "inline-flex cursor-not-allowed items-center justify-center rounded-md bg-zinc-200 px-4 py-2 text-sm font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500";
+  "inline-flex cursor-not-allowed items-center justify-center rounded-sm bg-gray-500/20 px-4 py-2 text-sm font-medium text-ink-muted";
 
 interface DownloadButtonProps {
   documentDetail: DocumentDetail;
@@ -26,9 +26,7 @@ export function DownloadButton({ documentDetail, values }: DownloadButtonProps) 
     return (
       <div>
         <span className={disabledClassName}>Download PDF</span>
-        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-          Fill in all fields to enable download.
-        </p>
+        <p className="mt-2 text-xs text-ink-muted">Fill in all fields to enable download.</p>
       </div>
     );
   }
