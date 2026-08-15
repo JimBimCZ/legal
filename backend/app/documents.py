@@ -24,6 +24,19 @@ _TOP_LEVEL_ITEM = re.compile(r"^(\d+)\.[ \t]+", re.MULTILINE)
 _NESTED_ITEM = re.compile(r"^[ \t]{2,8}(\d+)\.[ \t]+", re.MULTILINE)
 _TRAILING_POSSESSIVE = re.compile(r"[’']s$")
 
+# A numbered list ends at the first blank line followed by unindented, un-numbered
+# text. Mutual-NDA.md closes with exactly such a paragraph - Common Paper's own
+# attribution and licence notice - which, because an item's body otherwise runs to
+# EOF, used to collapse into the final clause and render inside the agreement with
+# its markdown link syntax intact. It is the only trailer of its kind in the 11
+# templates; every other file ends on a list item.
+_LIST_TRAILER = re.compile(r"\n[ \t]*\n(?![ \t])(?!\d+\.[ \t])(?=\S)")
+
+# Links in a trailer are surfaced as readable text rather than raw markdown, since
+# the notice ends up in `sourceAttribution` where nothing renders markup.
+_MARKDOWN_LINK = re.compile(r"\[([^\]]*)\]\(([^)]*)\)")
+_ANGLE_LINK = re.compile(r"<(https?://[^>\s]+)>")
+
 
 class CatalogEntry(BaseModel):
     id: str
@@ -136,6 +149,26 @@ def _split_items(text: str, pattern: re.Pattern[str]) -> list[str]:
     return [body for body in parts[2::2]]
 
 
+def _split_trailer(item_body: str) -> tuple[str, str]:
+    """Separate a list item's own text from any paragraph that ended the list.
+
+    Returns (item text, trailer). The trailer is empty for every item that is
+    genuinely followed by more list content, which is all but one of them.
+    """
+    match = _LIST_TRAILER.search(item_body)
+    if match is None:
+        return item_body, ""
+    return item_body[: match.start()], item_body[match.end() :].strip()
+
+
+def _plain_text(markdown: str) -> str:
+    """Flatten a short markdown paragraph to prose, keeping link targets visible."""
+    text = _MARKDOWN_LINK.sub(lambda m: f"{m.group(1)} ({m.group(2)})", markdown)
+    text = _ANGLE_LINK.sub(r"\1", text)
+    text = _OTHER_SPAN_TAG.sub("", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def _heading_and_runs(text: str) -> tuple[str | None, list[DocumentRun]]:
     """A block's heading, if any, is just its first bold run - whether that
     bold run came from **markdown** in the source or was normalized from a
@@ -151,7 +184,14 @@ def parse_template(name: str, description: str, doc_id: str, markdown: str) -> D
     top_level_bodies = _split_items(body, _TOP_LEVEL_ITEM)
 
     blocks: list[DocumentBlock] = []
+    # Paragraphs that closed the numbered list rather than belonging to it. They
+    # are the template's own attribution, so they are moved to sourceAttribution
+    # rather than dropped - CC BY requires the notice be kept.
+    trailers: list[str] = []
     for i, raw in enumerate(top_level_bodies, start=1):
+        raw, trailer = _split_trailer(raw)
+        if trailer:
+            trailers.append(_plain_text(trailer))
         own_text = _NESTED_ITEM.split(raw, maxsplit=1)[0]
         heading, runs = _heading_and_runs(own_text)
         blocks.append(DocumentBlock(level=1, number=str(i), heading=heading, runs=runs))
@@ -181,10 +221,13 @@ def parse_template(name: str, description: str, doc_id: str, markdown: str) -> D
     fields = _SUPPLEMENTAL_FIELDS.get(doc_id, []) + [
         FieldDef(key=key, label=label) for key, label in seen_keys.items()
     ]
-    attribution = (
-        f"Adapted from the Common Paper {name} template (see templates/LICENSE.txt), "
-        "licensed under CC BY 4.0 (creativecommons.org/licenses/by/4.0). Field values below "
-        "are filled in from user input; the template text is otherwise unmodified."
+    attribution = " ".join(
+        [
+            f"Adapted from the Common Paper {name} template (see templates/LICENSE.txt), "
+            "licensed under CC BY 4.0 (creativecommons.org/licenses/by/4.0). Field values below "
+            "are filled in from user input; the template text is otherwise unmodified.",
+            *trailers,
+        ]
     )
     return DocumentDetail(
         id=doc_id,

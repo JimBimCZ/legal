@@ -48,11 +48,29 @@ scripts/stop-windows.ps1
 Backend available at http://localhost:8000
 
 ## Color Scheme
-- Accent Yellow: `#ecad0a`
-- Blue Primary: `#209dd7`
-- Purple Secondary: `#753991` (submit buttons)
-- Dark Navy: `#032147` (headings)
-- Gray Text: `#888888`
+
+Superseded twice - by the groovy redesign, then narrowed again by the
+professional pass (see Implementation Status). The original navy, sky blue,
+grape and lagoon are all retired. What is left is one accent, one alert, and a
+warm neutral ramp:
+
+- Marigold: `#ecad0a` (the sun; the only saturated fill in the interface, spent
+  on the unlocked Download button, focus rings, and the sun mark)
+- Sunrise ramp: `#ecad0a` → `#d38a12` → `#b8601f` → `#8f3a1a` (the four sun
+  rings inside out, and the same ramp unrolled as the hairline rule)
+- Brick: `#b8461f` (`#9c3512` as small text) - errors, and the dotted rule
+  under an unanswered field. Nothing else
+- Plum: `#2a1a23` (masthead, primary actions, outlines, offset shadows).
+  Dark mode lifts the *action* to `#4e3947` so it does not vanish on a
+  near-black panel, while the masthead itself goes darker
+- Paper / canvas: `#fffaf2` / `#efe7d9`, rule `#ddd0bb`
+- Ink / muted ink: `#2b1b24` / `#6f5f5a`
+
+Three rules keep it coherent: one accent, so marigold appearing anywhere means
+something; authority is dark rather than loud, so the primary action is plum
+and a screen of controls still reads as paperwork; and a fill is never used for
+small text - each accent that has to appear as a label has an `-ink` twin
+clearing 4.5:1 on its own theme's paper.
 
 ## Implementation Status
 
@@ -128,6 +146,92 @@ Backend available at http://localhost:8000
 - No `variant` prop was added: removing the preview-column copy leaves `DownloadButton` with exactly one caller, so it was restyled in place rather than made configurable for a second placement that no longer exists
 - Below `lg` the masthead drops to two rows - title and actions on the first, the download button centred full-width on the second - since three columns can't fit side by side on a narrow screen. The subtitle is hidden and the title steps down to `text-lg` there too
 - The breakpoint is `lg` (not `sm`) and the signed-in email is held back further still to `xl`, because those two are what actually blow the budget: going three-wide at `sm`, or showing the email at `lg`, makes the title and both action links wrap onto two lines each. Verified at 390/640/1024/1280px
+
+### Download Gate Fix: Stand-In Field Values
+- Fixes "Download PDF" unlocking on the very first chat turn with a document full of "(currently: not yet known)". The completeness gate (`isDocumentComplete`, every field non-blank) was correct and unchanged - the field *values* defeated it
+- Root cause was prompt scaffolding leaking into structured output: `_field_collection_prompt` listed each field as `- Label: (currently: <value or 'not yet known'>)`, and the model copied that parenthetical verbatim into every field of the `fields` object. Non-blank strings, so the frontend read the document as complete and rendered the stand-in text into the preview and the PDF
+- The prompt now lists known and missing fields as two separate sections with no copyable inline annotation, and explicitly requires `""` (not a placeholder or a stand-in phrase) for anything the user hasn't given yet
+- Defense in depth, since prompt wording alone can't guarantee it: `clean_field_value()`/`clean_fields()` in `document_chat.py` normalize a stand-in value ("not yet known", "unknown", "TBD", "to be determined", ...) back to `""`. A real value wearing the `(currently: ...)` wrapper is unwrapped and kept rather than discarded. The list deliberately excludes "N/A" and "none", which can be a genuine answer to a real field
+- Applied at three boundaries: the model's returned fields (write), `known_fields` on the way into `run_chat_turn` (so a poisoned document is asked about again instead of counting as answered forever), and `get_document_for_user` (read), so documents saved before this fix open as unfilled rather than only healing on the next chat message
+- No frontend change - the gate was never the problem, and duplicating the stand-in list in TypeScript would just invite drift
+
+### Groovy Redesign
+- Replaced the LEG-9 navy/serif "professional" look with a 1974 poster-shop identity ("paperwork, mellowed"). The chrome is groovy - fat wonky display serif, pill controls, hard offset shadows, stacked sunset stripes - while the document preview and the PDF stay sober, so the agreement still reads as an agreement. The palette change is recorded under Color Scheme above
+- **The signature is that the logo is the progress bar.** `frontend/src/components/SunMeter.tsx` draws a half-sun of four concentric rings (marigold, ember, grape, lagoon, inside out); `DocumentPreview` passes it the live filled/total field count so the sun rises as the chat answers fields, and once it is full `DownloadButton` turns the sun's own marigold. The same mark, all rings lit, is the wordmark in the masthead, the arch on the sign-in card, and the loading state; the four-stripe rule along the bottom of the masthead is that sun unrolled, and the PDF letterhead repeats it
+- Ring lighting is deliberately not linear: none until the first field is answered, at most three while any field is outstanding, all four only at complete - so a nearly-done document never looks finished
+- One variable font family covers both registers (`frontend/src/app/layout.tsx`): Fraunces with the `SOFT`/`WONK`/`opsz` axes, driven from `.type-display` (`opsz 144, SOFT 100, WONK 1`, weight 800) for the chrome and `.type-doc` (`opsz 10, SOFT 0, WONK 0`) for the contract body. Jost (Futura-ish geometric) is the UI sans, Space Mono the utility face for clause numbers, docket codes, timestamps, and eyebrow labels. All self-hosted at build time via `next/font/google`, so the static export still has no runtime font dependency
+- Shape language lives in `globals.css`'s `components` layer (`.groove-panel`, `.groove-btn`, `.groove-input`, `.groove-card`, `.groove-chip`, `.groove-eyebrow`, `.groove-link`) so per-instance Tailwind utilities always win over the base. `.groove-shell` (the masthead) re-points `--color-pop`, the hard-shadow colour, rather than every control on it needing its own dark-ground variant
+- Each catalog type keeps one of the four accent colours for the life of the app, hashed from its id in `lib/cardStyles.ts` (`cardAccent`) - so the same NDA is orange on the catalog grid and orange again on the dashboard. Full literal class strings, since Tailwind only sees classes it can find in the source
+- Blanks in the preview are now dotted ember rules rather than plain grey italics, so what is left to answer is findable at a glance in a long document
+- Purely visual - no route, API, schema, or behavioural change. All 71 existing frontend tests pass unmodified; the copy they assert on ("Your Documents", "+ New Document", "{name} Details", "Document Preview") was kept verbatim and the voice work went into the untested supporting copy
+
+### Professional Pass
+- Keeps the groovy identity - warm paper, Fraunces, hard offset shadows, and
+  the logo-as-progress-meter signature - but takes roughly a third of the
+  poster-shop maximalism back out of it. The palette change is recorded under
+  Color Scheme above
+- **Four rotating accents became one.** Grape and lagoon are gone; the four sun
+  rings are now a single warm ramp (a sunrise, not a colour wheel) and the same
+  ramp is the hairline rule under the masthead, the page heading, and the
+  sign-in card. `SunRule` lives in `SunMeter.tsx` beside the mark itself, so
+  the two can't drift apart - it used to be three hand-written copies of the
+  stripe in three components
+- **The primary action is plum, not orange.** `--color-action` is its own token
+  rather than an alias of `--color-shell`, because dark mode has to lift it
+  (`#4e3947`) to keep it from disappearing into a near-black panel while the
+  masthead goes the other way. The chat's own-message bubble uses the same
+  token for the same reason. Marigold as a fill is now confined to the unlocked
+  Download button, so completion is the only place in the app that goes bright
+- **`.groove-eyebrow` is muted, not accented.** Every section label on every
+  screen used to be brick; making them ink-muted is the single largest colour
+  reduction, and it is what lets the accent still mean something
+- Shape and weight dialled back throughout: 26px panels → 12px, pill buttons
+  and inputs → 8px, 2px borders → 1.5px, 5px/3px offset shadows → 3px/2px,
+  chat bubbles from `rounded-3xl` to `rounded-lg`, the sign-in card's
+  150px arch to a 40px shoulder with a proper header band
+- `.type-display` runs Fraunces at `SOFT 30, WONK 0, opsz 72, weight 700`
+  instead of `SOFT 100, WONK 1, opsz 144, weight 800` - still recognisably
+  Fraunces, no longer a poster. `layout.tsx` still requests the WONK axis: the
+  `font-variation-settings` declaration needs it loaded even to set it to 0
+- New `.groove-btn-quiet` for controls that must not outweigh a primary beside
+  them; the dashboard's toggle now uses it in its "Cancel" state, having
+  previously rendered the dismiss action as the heaviest button on the page
+- `cardStyles.ts` lost `cardAccent` entirely. Cards are uniform and the mono
+  docket chip is an outlined stamp rather than a coloured pill - the code
+  already identified the type, so the colour was carrying no information the
+  label wasn't, and eleven cards in four hues read as a paint chart
+- Fixed a pre-existing typographic defect the flatter design made obvious:
+  almost every clause rendered as "Term and Termination. . This MNDA…". The
+  templates put the period after a clause heading *outside* the bold span, so
+  the parser's `heading` stops short of it and the block's first run opens with
+  ". " - and both the preview and the PDF appended one of their own. New
+  `lib/clauseHeading.ts` returns the separator to use (`""`, `" "`, or `". "`)
+  by looking at both sides, covering templates that put the period either way.
+  Guarded by `clauseHeading.test.ts`
+- Purely visual apart from that fix - no route, API, or schema change. All 71
+  pre-existing frontend tests pass unmodified (75 with the new ones)
+
+### Template Trailer Fix (backend parser)
+- Fixes the Common Paper attribution footer rendering *inside* the agreement.
+  `Mutual-NDA.md` ends with an unindented paragraph carrying its own licence
+  notice; because a top-level item's body otherwise runs to end of file, that
+  paragraph was swallowed by clause 11 and rendered into the contract with its
+  markdown link syntax intact ("...free to use under \[CC BY 4.0\](https://...)")
+- `_LIST_TRAILER` in `backend/app/documents.py` encodes the rule that ends a
+  numbered list: a blank line followed by unindented, un-numbered text. Applied
+  per top-level item (not by truncating the whole document at the first match)
+  so a hypothetical mid-document paragraph would cost that paragraph rather
+  than everything after it
+- The notice is **moved, not dropped** - CC BY requires it be retained, so
+  `_plain_text` flattens its markdown/angle links to readable prose and
+  `parse_template` appends it to `sourceAttribution`, which already renders in
+  small print below a rule in both the preview and the PDF
+- Mutual-NDA.md is the only one of the 11 templates that ends on anything but a
+  list item, and `test_no_other_template_has_a_trailer_to_strip` asserts that
+  stays true - if a future template gains a trailer, that test fails rather
+  than the parser silently swallowing content
+- Guarded by `TestListTrailer` plus two real-catalog tests; verified to fail
+  (3 tests) against a neutered `_LIST_TRAILER`. Backend suite is 86 passing
 
 ### Current API Endpoints
 - `POST /api/auth/signup` - Create account, set session cookie, return user record
