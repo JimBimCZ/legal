@@ -10,13 +10,14 @@ function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "document";
 }
 
-// Sits on the navy masthead, so both states are styled against a dark
-// background rather than the light panels used elsewhere.
-const buttonClassName =
-  "inline-flex items-center justify-center whitespace-nowrap rounded-sm bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-purple-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400";
+// Sits on the masthead, so both states are styled against plum rather than the
+// light panels used elsewhere. Enabled, it takes the marigold of a full sun -
+// the preview's meter and this button unlock together, and it is the only
+// place in the interface the accent appears as a fill.
+const enabledClassName = "groove-btn groove-btn-sun";
 
 const disabledClassName =
-  "inline-flex cursor-not-allowed items-center justify-center whitespace-nowrap rounded-sm bg-white/10 px-4 py-2 text-sm font-medium text-white/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400";
+  "groove-btn cursor-not-allowed border-on-shell/20 bg-transparent text-on-shell/45 shadow-none";
 
 interface DownloadButtonProps {
   documentDetail: DocumentDetail;
@@ -49,7 +50,7 @@ export function DownloadButton({ documentDetail, values }: DownloadButtonProps) 
     <PDFDownloadLink
       document={<DocumentPdf documentDetail={documentDetail} values={values} />}
       fileName={fileName}
-      className={buttonClassName}
+      className={enabledClassName}
     >
       {({ loading }) => (loading ? "Preparing PDF..." : "Download PDF")}
     </PDFDownloadLink>

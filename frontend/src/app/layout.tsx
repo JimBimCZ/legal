@@ -1,29 +1,26 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, Libre_Caslon_Display, Libre_Caslon_Text } from "next/font/google";
+import { Fraunces, Jost, Space_Mono } from "next/font/google";
 import "./globals.css";
 
-const displaySerif = Libre_Caslon_Display({
+// One variable serif covers both the chrome and the document body - the
+// SOFT/WONK/opsz axes are driven from `.type-display` / `.type-doc` in
+// globals.css, so the two never need separate families. WONK stays loaded even
+// though the display register now runs it at 0: the axis has to be requested
+// at build time for the variation-settings declaration to resolve at all.
+const displaySerif = Fraunces({
   variable: "--font-display",
-  weight: "400",
   subsets: ["latin"],
+  axes: ["SOFT", "WONK", "opsz"],
 });
 
-const documentSerif = Libre_Caslon_Text({
-  variable: "--font-document",
-  weight: "400",
-  style: ["normal", "italic"],
-  subsets: ["latin"],
-});
-
-const uiSans = IBM_Plex_Sans({
+const uiSans = Jost({
   variable: "--font-sans",
-  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
 });
 
-const uiMono = IBM_Plex_Mono({
+const uiMono = Space_Mono({
   variable: "--font-mono",
-  weight: ["400", "500", "600"],
+  weight: ["400", "700"],
   subsets: ["latin"],
 });
 
@@ -41,7 +38,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${displaySerif.variable} ${documentSerif.variable} ${uiSans.variable} ${uiMono.variable} h-full antialiased`}
+      className={`${displaySerif.variable} ${uiSans.variable} ${uiMono.variable} h-full antialiased`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />

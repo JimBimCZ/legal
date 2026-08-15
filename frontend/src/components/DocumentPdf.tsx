@@ -1,13 +1,18 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
+import { headingSeparator } from "@/lib/clauseHeading";
 import { fieldDisplayValue } from "@/lib/documentFields";
 import type { DocumentDetail, DocumentFields } from "@/types/document";
 
-const NAVY = "#032147";
-const BLUE = "#209dd7";
-const YELLOW = "#ecad0a";
-const GRAY = "#888888";
-const LINE = "#dfe4ea";
+// The app's palette, carried onto the page. Colour is confined to the
+// letterhead rule; everything else is plum, muted brown, or black on white, so
+// the agreement reads as an agreement in print and survives a mono printer.
+const PLUM = "#241520";
+const MUTED = "#6f5f5a";
+const LINE = "#ddd0bb";
+
+// The sun's four rings, unrolled - the same warm ramp the app wears.
+const SUN_RAMP = ["#ecad0a", "#d38a12", "#b8601f", "#8f3a1a"];
 
 const styles = StyleSheet.create({
   page: {
@@ -17,17 +22,20 @@ const styles = StyleSheet.create({
     lineHeight: 1.5,
     fontFamily: "Times-Roman",
   },
-  letterhead: { height: 2, width: 40, backgroundColor: NAVY, marginBottom: 3 },
-  letterheadAccent: { height: 2, width: 14, backgroundColor: YELLOW, marginBottom: 16 },
-  title: { fontSize: 17, fontFamily: "Times-Bold", color: NAVY, marginBottom: 16 },
+  letterhead: { flexDirection: "row", marginBottom: 16 },
+  letterheadStripe: { height: 2.5, width: 14 },
+  title: { fontSize: 16, fontFamily: "Times-Bold", color: PLUM, marginBottom: 16 },
   sectionHeading: {
     fontSize: 8.5,
     fontFamily: "Courier-Bold",
-    color: BLUE,
+    color: MUTED,
     textTransform: "uppercase",
     letterSpacing: 1,
     marginTop: 20,
-    marginBottom: 8,
+    marginBottom: 6,
+    paddingBottom: 4,
+    borderBottomWidth: 0.5,
+    borderBottomColor: LINE,
   },
   fieldRow: {
     flexDirection: "row",
@@ -35,14 +43,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: LINE,
   },
-  fieldLabel: { width: 160, color: GRAY },
+  fieldLabel: { width: 160, color: MUTED },
   fieldValue: { flex: 1, fontFamily: "Times-Bold" },
-  fieldValueEmpty: { flex: 1, color: GRAY, fontStyle: "italic" },
+  fieldValueEmpty: { flex: 1, color: MUTED, fontStyle: "italic" },
   paragraph: { marginBottom: 8 },
   paragraphNested: { marginBottom: 8, marginLeft: 20 },
-  clauseNumber: { fontFamily: "Courier-Bold", fontSize: 9.5, color: NAVY },
+  clauseNumber: { fontFamily: "Courier-Bold", fontSize: 9.5, color: MUTED },
   bold: { fontFamily: "Times-Bold" },
-  attribution: { marginTop: 20, fontSize: 8, color: GRAY, fontFamily: "Courier" },
+  attribution: { marginTop: 20, fontSize: 8, color: MUTED, fontFamily: "Courier" },
 });
 
 interface DocumentPdfProps {
@@ -54,8 +62,11 @@ export function DocumentPdf({ documentDetail, values }: DocumentPdfProps) {
   return (
     <Document title={documentDetail.name}>
       <Page size="LETTER" style={styles.page}>
-        <View style={styles.letterhead} />
-        <View style={styles.letterheadAccent} />
+        <View style={styles.letterhead}>
+          {SUN_RAMP.map((color) => (
+            <View key={color} style={[styles.letterheadStripe, { backgroundColor: color }]} />
+          ))}
+        </View>
         <Text style={styles.title}>{documentDetail.name}</Text>
 
         <Text style={styles.sectionHeading}>Fields</Text>
@@ -73,7 +84,12 @@ export function DocumentPdf({ documentDetail, values }: DocumentPdfProps) {
         {documentDetail.blocks.map((block, index) => (
           <Text key={index} style={block.level === 2 ? styles.paragraphNested : styles.paragraph}>
             <Text style={styles.clauseNumber}>{block.number}. </Text>
-            {block.heading && <Text style={styles.bold}>{block.heading}. </Text>}
+            {block.heading && (
+              <Text style={styles.bold}>
+                {block.heading}
+                {headingSeparator(block)}
+              </Text>
+            )}
             {block.runs.map((run, runIndex) => {
               if (run.kind === "field") {
                 const { text } = fieldDisplayValue(run.fieldKey, documentDetail.fields, values);

@@ -2,63 +2,99 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  /* Brand palette per project spec: navy for headings/chrome, blue for
-     interactive elements, purple reserved for primary/submit CTAs, yellow as
-     a sparing accent. Everything else here is a supporting neutral derived
-     to sit alongside those four. */
-  --color-navy-950: #032147;
-  --color-navy-800: #0c3868;
-  --color-navy-700: #17497e;
-  --color-navy-100: #e4eaf1;
-  --color-blue-500: #209dd7;
-  --color-blue-600: #1583b3;
-  --color-purple-600: #753991;
-  --color-purple-700: #602f78;
-  --color-yellow-400: #ecad0a;
-  --color-gray-500: #888888;
+/*
+  "Paperwork, mellowed" - warm, but pressed flat.
 
-  --color-canvas: #f5f7fa;
-  --color-paper: #ffffff;
-  --color-line: #dfe4ea;
-  --color-ink: #10233d;
-  --color-ink-muted: var(--color-gray-500);
-  /* Headings: dark navy on the light paper/canvas surfaces this normally sits
-     on. In dark mode those surfaces are themselves dark navy, so this flips
-     to a near-white instead of staying navy-on-navy (illegible). */
-  --color-heading: var(--color-navy-950);
+  The identity is still the sun: the logo is the progress meter, raised things
+  cast a hard offset shadow, and the paper is warm rather than white. What the
+  system does not do is decorate. Three rules hold it together:
+
+  1. One accent. Marigold is the sun - progress, completion, focus. It is the
+     only saturated colour in the interface, so where it appears means
+     something. Brick is reserved for what is wrong or unanswered.
+  2. Authority is dark, not loud. The primary action is the same deep plum as
+     the masthead, so a page of buttons reads as a document, not a dashboard.
+  3. A fill is never used for small text. Each accent that has to appear as a
+     label has an `-ink` twin that clears 4.5:1 on its own theme's paper.
+*/
+:root {
+  /* The one accent */
+  --color-marigold: #ecad0a;
+  --color-marigold-deep: #cd9305;
+
+  /* Sunrise ramp: the four sun rings, inside out. One hue family, not four. */
+  --color-sun-1: #ecad0a;
+  --color-sun-2: #d38a12;
+  --color-sun-3: #b8601f;
+  --color-sun-4: #8f3a1a;
+
+  /* Alert / unanswered */
+  --color-ember: #b8461f;
+  --color-ember-ink: #9c3512;
+
+  /* Neutrals */
+  --color-canvas: #efe7d9;
+  --color-paper: #fffaf2;
+  --color-line: #ddd0bb;
+  --color-ink: #2b1b24;
+  --color-ink-muted: #6f5f5a;
+  --color-heading: #241520;
+
+  /* Chrome: the masthead and anything else standing on plum */
+  --color-shell: #2a1a23;
+  --color-shell-lift: #3b2731;
+  --color-on-shell: #f6ece0;
+
+  /* The primary action. On light paper it is the masthead's own plum; in dark
+     mode that would sit invisibly on a near-black panel, so the dark theme
+     lifts it to a plum that still reads as the darkest thing you can press. */
+  --color-action: #2a1a23;
+  --color-action-hover: #3b2731;
+  --color-on-action: #f6ece0;
+
+  /* The hard offset shadow every raised thing casts. Scoped: `.groove-shell`
+     re-points it so controls on the masthead cast a shadow that still reads. */
+  --color-pop: #2a1a23;
 }
 
 .dark {
-  --color-navy-100: #123863;
-  --color-canvas: #021530;
-  --color-paper: #0a2a4d;
-  --color-line: #17416e;
-  --color-ink: #eef2f7;
-  --color-ink-muted: #9db1c7;
-  --color-heading: #f5f8fc;
+  --color-ember-ink: #ee8b64;
+
+  --color-canvas: #171016;
+  --color-paper: #221a20;
+  --color-line: #3d3038;
+  --color-ink: #f2e9df;
+  --color-ink-muted: #a8988f;
+  --color-heading: #fdf6ec;
+
+  --color-shell: #1e1319;
+  --color-shell-lift: #33242c;
+  --color-pop: #453541;
+
+  --color-action: #4e3947;
+  --color-action-hover: #5f4757;
 }
 
 @theme inline {
-  --color-navy-950: var(--color-navy-950);
-  --color-navy-800: var(--color-navy-800);
-  --color-navy-700: var(--color-navy-700);
-  --color-navy-100: var(--color-navy-100);
-  --color-blue-500: var(--color-blue-500);
-  --color-blue-600: var(--color-blue-600);
-  --color-purple-600: var(--color-purple-600);
-  --color-purple-700: var(--color-purple-700);
-  --color-yellow-400: var(--color-yellow-400);
-  --color-gray-500: var(--color-gray-500);
+  --color-marigold: var(--color-marigold);
+  --color-marigold-deep: var(--color-marigold-deep);
+  --color-ember: var(--color-ember);
+  --color-ember-ink: var(--color-ember-ink);
+
   --color-canvas: var(--color-canvas);
   --color-paper: var(--color-paper);
   --color-line: var(--color-line);
   --color-ink: var(--color-ink);
   --color-ink-muted: var(--color-ink-muted);
   --color-heading: var(--color-heading);
+  --color-shell: var(--color-shell);
+  --color-shell-lift: var(--color-shell-lift);
+  --color-on-shell: var(--color-on-shell);
+  --color-action: var(--color-action);
+  --color-on-action: var(--color-on-action);
+  --color-pop: var(--color-pop);
 
   --font-display: var(--font-display);
-  --font-document: var(--font-document);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 }
@@ -66,4 +102,265 @@
 body {
   background: var(--color-canvas);
   color: var(--color-ink);
+}
+
+/* Everything below is in `components` so per-instance Tailwind utilities
+   (a one-off radius, a tighter pad) always win over the base. */
+@layer components {
+  /*
+    One variable family, two registers. The chrome keeps Fraunces' warmth but
+    runs the display axes at a fraction of their range - enough character to
+    be recognisable, not so much that a contract looks like a poster. The
+    agreement itself runs them all the way down.
+  */
+  .type-display {
+    font-family: var(--font-display), Georgia, serif;
+    font-variation-settings: "opsz" 72, "SOFT" 30, "WONK" 0;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+  }
+
+  .type-doc {
+    font-family: var(--font-display), Georgia, serif;
+    font-variation-settings: "opsz" 10, "SOFT" 0, "WONK" 0;
+    font-weight: 400;
+  }
+
+  /* Section labels. Muted rather than accented - marigold has to stay scarce
+     enough that the sun still means something. */
+  .groove-eyebrow {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-ink-muted);
+  }
+
+  /* The masthead, and anything else standing on plum. */
+  .groove-shell {
+    background: var(--color-shell);
+    color: var(--color-on-shell);
+    --color-pop: #120a0f;
+  }
+
+  /* A shadow darker than the shell itself vanishes once the shell is already
+     near-black, so in dark mode raised controls up there cast a lifted plum. */
+  .dark .groove-shell {
+    --color-pop: #4a3844;
+  }
+
+  .groove-panel {
+    border-radius: 12px;
+    border: 1.5px solid var(--color-pop);
+    background: var(--color-paper);
+    box-shadow: 3px 3px 0 var(--color-pop);
+  }
+
+  .groove-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+    border-radius: 8px;
+    border: 1.5px solid var(--color-pop);
+    padding: 0.5rem 1.1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    box-shadow: 2px 2px 0 var(--color-pop);
+    transition:
+      transform 0.12s ease,
+      box-shadow 0.12s ease,
+      background-color 0.12s ease,
+      color 0.12s ease;
+  }
+
+  .groove-btn:hover:not(:disabled):not([aria-disabled="true"]) {
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 var(--color-pop);
+  }
+
+  /* Presses all the way down onto its own shadow. */
+  .groove-btn:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: translate(2px, 2px);
+    box-shadow: 0 0 0 var(--color-pop);
+  }
+
+  .groove-btn:focus-visible {
+    outline: 2px solid var(--color-marigold);
+    outline-offset: 2px;
+  }
+
+  /* Authority is dark, not loud: the primary action wears the masthead's own
+     plum, so a screen full of controls still reads as paperwork. */
+  .groove-btn-primary {
+    background: var(--color-action);
+    color: var(--color-on-action);
+  }
+
+  .groove-btn-primary:hover:not(:disabled) {
+    background: var(--color-action-hover);
+  }
+
+  .groove-btn-primary:disabled {
+    background: var(--color-line);
+    color: color-mix(in srgb, var(--color-ink) 55%, transparent);
+    box-shadow: 1px 1px 0 var(--color-pop);
+    cursor: not-allowed;
+  }
+
+  /* Steps out of the way of a primary sitting beside it - dismissing, going
+     back, cancelling. Same footprint, none of the weight. */
+  .groove-btn-quiet {
+    background: transparent;
+    color: var(--color-ink);
+  }
+
+  .groove-btn-quiet:hover:not(:disabled) {
+    background: var(--color-canvas);
+  }
+
+  /* The one control that earns the accent: when the sun is full, Download
+     turns the sun's own marigold. */
+  .groove-btn-sun {
+    background: var(--color-marigold);
+    color: #241520;
+    border-color: var(--color-marigold-deep);
+  }
+
+  .groove-btn-sun:hover {
+    background: var(--color-marigold-deep);
+  }
+
+  /* Text links: masthead actions, the sign-in/sign-up switch, chat retry.
+     They carry their own focus ring because a browser default outline is
+     unreliable against plum. */
+  .groove-link:focus-visible {
+    outline: 2px solid var(--color-marigold);
+    outline-offset: 4px;
+    border-radius: 3px;
+  }
+
+  .groove-input {
+    width: 100%;
+    border-radius: 8px;
+    border: 1.5px solid var(--color-pop);
+    background: var(--color-paper);
+    padding: 0.55rem 0.85rem;
+    font-size: 0.875rem;
+    color: var(--color-ink);
+  }
+
+  .groove-input::placeholder {
+    color: var(--color-ink-muted);
+  }
+
+  .groove-input:focus {
+    outline: none;
+    border-color: var(--color-marigold-deep);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-marigold) 40%, transparent);
+  }
+
+  .groove-input:disabled {
+    background: color-mix(in srgb, var(--color-line) 45%, var(--color-paper));
+    cursor: not-allowed;
+  }
+
+  /* Catalog and saved-document cards. Uniform - the mono docket code does the
+     identifying, so the grid stays a filing cabinet rather than a paint chart. */
+  .groove-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+    border-radius: 12px;
+    border: 1.5px solid var(--color-pop);
+    background: var(--color-paper);
+    padding: 1.35rem;
+    text-align: left;
+    box-shadow: 3px 3px 0 var(--color-pop);
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  .groove-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0 var(--color-pop);
+  }
+
+  .groove-card:focus-visible {
+    outline: 2px solid var(--color-marigold);
+    outline-offset: 3px;
+  }
+
+  /* Docket code. An outlined stamp, not a coloured pill. */
+  .groove-chip {
+    border-radius: 4px;
+    border: 1px solid var(--color-line);
+    background: var(--color-canvas);
+    padding: 0.18rem 0.45rem;
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--color-ink-muted);
+  }
+
+  .groove-card:hover .groove-chip {
+    border-color: var(--color-marigold-deep);
+    color: var(--color-ink);
+  }
+
+  /* Sun rings fade in as fields get answered. */
+  .groove-ring {
+    transition:
+      stroke 0.45s ease,
+      fill 0.45s ease;
+  }
+
+  .groove-dot {
+    display: inline-block;
+    width: 0.28rem;
+    height: 0.28rem;
+    border-radius: 999px;
+    background: currentColor;
+    animation: groove-bob 1s ease-in-out infinite;
+  }
+
+  .groove-dot:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+
+  .groove-dot:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+}
+
+@keyframes groove-bob {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-0.25rem);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

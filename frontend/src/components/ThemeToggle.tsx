@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 const buttonClassName =
-  "inline-flex h-9 w-9 items-center justify-center rounded-sm border border-white/20 bg-white/5 text-white/80 transition-colors hover:border-yellow-400/60 hover:text-yellow-400";
+  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-on-shell/25 text-on-shell/70 transition-colors hover:border-marigold hover:text-marigold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marigold";
 
 const listeners = new Set<() => void>();
 
@@ -46,14 +46,14 @@ export function ThemeToggle() {
       className={buttonClassName}
     >
       {isDark ? (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
           <path
             fill="currentColor"
             d="M12 4.5a1 1 0 0 1 1 1V7a1 1 0 1 1-2 0V5.5a1 1 0 0 1 1-1Zm0 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7.5-3.5a1 1 0 0 1 1-1H22a1 1 0 1 1 0 2h-1.5a1 1 0 0 1-1-1ZM2 12a1 1 0 0 1 1-1h1.5a1 1 0 1 1 0 2H3a1 1 0 0 1-1-1Zm15.66-6.66a1 1 0 0 1 1.41 0l.71.7a1 1 0 0 1-1.41 1.42l-.71-.71a1 1 0 0 1 0-1.41ZM5.63 17.66a1 1 0 0 1 1.41 0l.71.71a1 1 0 1 1-1.41 1.41l-.71-.7a1 1 0 0 1 0-1.42ZM12 18.5a1 1 0 0 1 1 1V21a1 1 0 1 1-2 0v-1.5a1 1 0 0 1 1-1Zm6.37-.84a1 1 0 0 1 1.41 1.41l-.71.71a1 1 0 0 1-1.41-1.41l.71-.71ZM6.34 6.34a1 1 0 0 1 1.41-1.41l.71.7a1 1 0 0 1-1.41 1.42l-.71-.71Z"
           />
         </svg>
       ) : (
-        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
           <path
             fill="currentColor"
             d="M20.74 15.5a8.5 8.5 0 0 1-10.24-10.24.75.75 0 0 0-.96-.9A9.5 9.5 0 1 0 21.64 16.46a.75.75 0 0 0-.9-.96Z"
