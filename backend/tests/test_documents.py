@@ -96,6 +96,65 @@ class TestParseTemplate:
         assert doc.fields == []
 
 
+class TestListTrailer:
+    """A paragraph that ends the numbered list is not part of the last clause.
+
+    Common Paper's Mutual NDA closes with its own attribution notice. Because a
+    top-level item's body otherwise runs to end of file, it used to be glued onto
+    the final clause and rendered inside the agreement, raw markdown links and all.
+    """
+
+    TRAILER = (
+        "Common Paper Mutual Non-Disclosure Agreement "
+        "[Version 1.0](https://commonpaper.com/standards/mutual-nda/1.0/) "
+        "free to use under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)."
+    )
+
+    def _parse(self, *, with_trailer: bool):
+        markdown = (
+            "# Standard Terms\n\n"
+            "1. **Introduction**. The first clause.\n\n"
+            "2. **General**. The last clause ends here."
+        )
+        if with_trailer:
+            markdown += f"\n\n{self.TRAILER}"
+        return parse_template("Test Doc", "desc", "test.md", markdown + "\n")
+
+    def test_trailer_is_not_rendered_into_the_final_clause(self):
+        doc = self._parse(with_trailer=True)
+        assert "".join(r.text for r in doc.blocks[-1].runs) == ". The last clause ends here."
+
+    def test_trailer_creates_no_extra_block(self):
+        with_trailer = self._parse(with_trailer=True)
+        without = self._parse(with_trailer=False)
+        assert len(with_trailer.blocks) == len(without.blocks) == 2
+
+    def test_trailer_is_kept_in_the_attribution_with_readable_links(self):
+        # CC BY requires the notice be retained, so it moves rather than vanishing.
+        attribution = self._parse(with_trailer=True).sourceAttribution
+        assert "https://commonpaper.com/standards/mutual-nda/1.0/" in attribution
+        assert "Version 1.0 (https://" in attribution
+        # ...but as prose, not as markup nothing will render.
+        assert "](" not in attribution
+
+    def test_documents_without_a_trailer_keep_the_plain_attribution(self):
+        assert self._parse(with_trailer=False).sourceAttribution.endswith(
+            "the template text is otherwise unmodified."
+        )
+
+    def test_indented_sub_items_after_a_blank_line_are_not_trailers(self):
+        # The regex has to let a nested list continue; only unindented,
+        # un-numbered text ends the list.
+        markdown = (
+            "# Standard Terms\n\n"
+            "1. **Service**\n\n"
+            "    1. **Access**. First sub-item.\n\n"
+            "    2. **Support**. Second sub-item.\n"
+        )
+        doc = parse_template("Test Doc", "desc", "test.md", markdown)
+        assert [(b.level, b.number) for b in doc.blocks] == [(1, "1"), (2, "1.1"), (2, "1.2")]
+
+
 class TestRealCatalog:
     """Sanity checks against the actual templates/ directory, since the parser
     was built against its real (occasionally messy) structure."""
@@ -120,6 +179,24 @@ class TestRealCatalog:
         assert {"party1Name", "party1Address", "party2Name", "party2Address"} <= {
             f.key for f in detail.fields
         }
+
+    def test_mutual_nda_final_clause_stops_before_the_licence_notice(self):
+        detail = get_document_detail("Mutual-NDA.md")
+        final_text = "".join(r.text for r in detail.blocks[-1].runs)
+        assert final_text.rstrip().endswith("form the same agreement.")
+        assert "commonpaper.com" not in final_text
+        # Retained, just not inside the agreement itself.
+        assert "commonpaper.com/standards/mutual-nda/1.0" in detail.sourceAttribution
+
+    @pytest.mark.parametrize(
+        "filename", [e.id for e in load_catalog() if e.id != "Mutual-NDA.md"]
+    )
+    def test_no_other_template_has_a_trailer_to_strip(self, filename):
+        # Mutual-NDA.md is the only one of the 11 that ends on anything but a
+        # list item; if that changes, the trailer handling should be revisited
+        # rather than silently swallowing content.
+        detail = get_document_detail(filename)
+        assert detail.sourceAttribution.endswith("the template text is otherwise unmodified.")
 
     def test_csa_has_customer_and_provider_fields(self):
         detail = get_document_detail("CSA.md")

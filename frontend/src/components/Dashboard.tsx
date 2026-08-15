@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { DocumentMenu } from "@/components/DocumentMenu";
-import { cardButtonClassName, cardCodeClassName, cardGridClassName } from "@/lib/cardStyles";
+import { cardButtonClassName, cardGridClassName, cardTitleClassName } from "@/lib/cardStyles";
 import { documentTypeCode } from "@/lib/documentTypeCode";
 import { fetchSavedDocuments } from "@/lib/savedDocumentsApi";
 import type { SavedDocumentSummary } from "@/types/savedDocument";
@@ -14,9 +14,6 @@ interface DashboardProps {
   refreshKey: number;
   actionError: string | null;
 }
-
-const newDocumentButtonClassName =
-  "inline-flex items-center justify-center rounded-sm bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-purple-700";
 
 export function Dashboard({ onResume, onCreateNew, refreshKey, actionError }: DashboardProps) {
   const [documents, setDocuments] = useState<SavedDocumentSummary[] | null>(null);
@@ -49,34 +46,42 @@ export function Dashboard({ onResume, onCreateNew, refreshKey, actionError }: Da
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between border-b border-line pb-4">
-        <h2 className="font-display text-2xl tracking-tight text-heading">
-          Your Documents
-        </h2>
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-5">
+        <div>
+          <p className="ui-eyebrow">{showMenu ? "Pick a template" : "Pick up where you left off"}</p>
+          <h2 className="type-display mt-2 text-2xl text-heading sm:text-3xl">Your Documents</h2>
+        </div>
+        {/* Starting a document is the primary action; backing out of the
+            template list is not, so the two states carry different weight. */}
         <button
           type="button"
           onClick={() => setShowMenu((current) => !current)}
-          className={newDocumentButtonClassName}
+          className={`ui-btn ${showMenu ? "ui-btn-quiet" : "ui-btn-primary"}`}
         >
           {showMenu ? "Cancel" : "+ New Document"}
         </button>
       </div>
 
-      {actionError && <p className="text-sm text-red-600 dark:text-red-400">{actionError}</p>}
-
-      {showMenu && <DocumentMenu onSelect={handleCreateNew} />}
-
-      {!showMenu && loadError && <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>}
-
-      {!showMenu && !loadError && !documents && (
-        <p className="font-mono text-xs uppercase tracking-widest text-ink-muted">
-          Loading your documents…
+      {actionError && (
+        <p className="border-l-2 border-flag py-1 pl-3 text-sm font-medium text-flag-ink">
+          {actionError}
         </p>
       )}
 
+      {showMenu && <DocumentMenu onSelect={handleCreateNew} />}
+
+      {!showMenu && loadError && (
+        <p className="border-l-2 border-flag py-1 pl-3 text-sm font-medium text-flag-ink">
+          {loadError}
+        </p>
+      )}
+
+      {!showMenu && !loadError && !documents && <p className="ui-eyebrow">Loading your documents…</p>}
+
       {!showMenu && documents && documents.length === 0 && (
-        <p className="text-sm text-ink-muted">
-          You don&apos;t have any documents yet. Click &quot;+ New Document&quot; to get started.
+        <p className="max-w-md text-sm leading-relaxed text-ink-muted">
+          You don&apos;t have any documents yet. Start one and the assistant will ask for what the
+          template needs, a question at a time.
         </p>
       )}
 
@@ -89,11 +94,9 @@ export function Dashboard({ onResume, onCreateNew, refreshKey, actionError }: Da
               onClick={() => onResume(document.id)}
               className={cardButtonClassName}
             >
-              <span className={cardCodeClassName}>{documentTypeCode(document.documentTypeId)}</span>
-              <span className="font-display text-base leading-snug text-heading">
-                {document.documentTypeName}
-              </span>
-              <span className="font-mono text-[11px] text-ink-muted">
+              <span className="ui-chip">{documentTypeCode(document.documentTypeId)}</span>
+              <span className={cardTitleClassName}>{document.documentTypeName}</span>
+              <span className="font-mono text-[11px] tracking-wide text-ink-muted">
                 Updated {new Date(document.updatedAt).toLocaleString()}
               </span>
             </button>

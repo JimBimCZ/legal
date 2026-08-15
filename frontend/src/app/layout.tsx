@@ -1,29 +1,21 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, Libre_Caslon_Display, Libre_Caslon_Text } from "next/font/google";
+import { IBM_Plex_Mono, Public_Sans } from "next/font/google";
 import "./globals.css";
 
-const displaySerif = Libre_Caslon_Display({
-  variable: "--font-display",
-  weight: "400",
-  subsets: ["latin"],
-});
-
-const documentSerif = Libre_Caslon_Text({
-  variable: "--font-document",
-  weight: "400",
-  style: ["normal", "italic"],
-  subsets: ["latin"],
-});
-
-const uiSans = IBM_Plex_Sans({
+// One family sets the whole product - interface and agreement alike - split
+// into registers by size and leading in globals.css rather than by typeface.
+// Public Sans is the US Web Design System's face, drawn for setting official
+// documents legibly at every size, which is this product's job exactly.
+const uiSans = Public_Sans({
   variable: "--font-sans",
-  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
 });
 
+// The "record" voice: docket codes, clause numbers, field counts, and the
+// labels that behave like references rather than prose.
 const uiMono = IBM_Plex_Mono({
   variable: "--font-mono",
-  weight: ["400", "500", "600"],
+  weight: ["400", "500"],
   subsets: ["latin"],
 });
 
@@ -41,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${displaySerif.variable} ${documentSerif.variable} ${uiSans.variable} ${uiMono.variable} h-full antialiased`}
+      className={`${uiSans.variable} ${uiMono.variable} h-full antialiased`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
