@@ -4,27 +4,32 @@ import { headingSeparator } from "@/lib/clauseHeading";
 import { fieldDisplayValue } from "@/lib/documentFields";
 import type { DocumentDetail, DocumentFields } from "@/types/document";
 
-// The app's palette, carried onto the page. Colour is confined to the
-// letterhead rule; everything else is plum, muted brown, or black on white, so
-// the agreement reads as an agreement in print and survives a mono printer.
-const PLUM = "#241520";
-const MUTED = "#6f5f5a";
-const LINE = "#ddd0bb";
+// Strictly monochrome, unlike the app: the screen spends its one accent on
+// what is still unanswered, but a downloaded agreement is finished, and a red
+// mark in a printed contract reads as a correction rather than a signal.
+const INK = "#09090b";
+const MUTED = "#52525b";
+const LINE = "#d4d4d8";
 
-// The sun's four rings, unrolled - the same warm ramp the app wears.
-const SUN_RAMP = ["#ecad0a", "#d38a12", "#b8601f", "#8f3a1a"];
+// The measure, every tick struck - the same mark the app wears, at rest.
+const LETTERHEAD_TICKS = 8;
 
 const styles = StyleSheet.create({
+  // Helvetica rather than Times: the screen sets the whole product in one
+  // clear grotesque, and Helvetica is the closest of react-pdf's three
+  // built-in standard families, so the printed page matches with no font
+  // files to bundle and nothing to fetch at generation time.
   page: {
     paddingVertical: 48,
     paddingHorizontal: 56,
-    fontSize: 10.5,
-    lineHeight: 1.5,
-    fontFamily: "Times-Roman",
+    fontSize: 10,
+    lineHeight: 1.6,
+    fontFamily: "Helvetica",
+    color: INK,
   },
-  letterhead: { flexDirection: "row", marginBottom: 16 },
-  letterheadStripe: { height: 2.5, width: 14 },
-  title: { fontSize: 16, fontFamily: "Times-Bold", color: PLUM, marginBottom: 16 },
+  letterhead: { flexDirection: "row", gap: 1, marginBottom: 16 },
+  letterheadTick: { height: 3, width: 13, backgroundColor: INK },
+  title: { fontSize: 16, fontFamily: "Helvetica-Bold", color: INK, marginBottom: 16 },
   sectionHeading: {
     fontSize: 8.5,
     fontFamily: "Courier-Bold",
@@ -43,13 +48,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: LINE,
   },
-  fieldLabel: { width: 160, color: MUTED },
-  fieldValue: { flex: 1, fontFamily: "Times-Bold" },
+  fieldLabel: { width: 160, fontFamily: "Courier", fontSize: 8.5, color: MUTED },
+  fieldValue: { flex: 1, fontFamily: "Helvetica-Bold" },
   fieldValueEmpty: { flex: 1, color: MUTED, fontStyle: "italic" },
   paragraph: { marginBottom: 8 },
   paragraphNested: { marginBottom: 8, marginLeft: 20 },
-  clauseNumber: { fontFamily: "Courier-Bold", fontSize: 9.5, color: MUTED },
-  bold: { fontFamily: "Times-Bold" },
+  clauseNumber: { fontFamily: "Courier", fontSize: 9, color: MUTED },
+  bold: { fontFamily: "Helvetica-Bold" },
   attribution: { marginTop: 20, fontSize: 8, color: MUTED, fontFamily: "Courier" },
 });
 
@@ -63,8 +68,8 @@ export function DocumentPdf({ documentDetail, values }: DocumentPdfProps) {
     <Document title={documentDetail.name}>
       <Page size="LETTER" style={styles.page}>
         <View style={styles.letterhead}>
-          {SUN_RAMP.map((color) => (
-            <View key={color} style={[styles.letterheadStripe, { backgroundColor: color }]} />
+          {Array.from({ length: LETTERHEAD_TICKS }, (_, index) => (
+            <View key={index} style={styles.letterheadTick} />
           ))}
         </View>
         <Text style={styles.title}>{documentDetail.name}</Text>

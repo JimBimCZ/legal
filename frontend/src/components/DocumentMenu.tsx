@@ -32,11 +32,13 @@ export function DocumentMenu({ onSelect }: DocumentMenuProps) {
   }, []);
 
   if (error) {
-    return <p className="text-sm font-medium text-ember-ink">{error}</p>;
+    return (
+      <p className="border-l-2 border-flag py-1 pl-3 text-sm font-medium text-flag-ink">{error}</p>
+    );
   }
 
   if (!catalog) {
-    return <p className="groove-eyebrow">Loading document types…</p>;
+    return <p className="ui-eyebrow">Loading document types…</p>;
   }
 
   return (
@@ -48,9 +50,9 @@ export function DocumentMenu({ onSelect }: DocumentMenuProps) {
           onClick={() => onSelect(entry.id, entry.name)}
           className={cardButtonClassName}
         >
-          <span className="groove-chip">{documentTypeCode(entry.id)}</span>
+          <span className="ui-chip">{documentTypeCode(entry.id)}</span>
           <span className={cardTitleClassName}>{entry.name}</span>
-          <span className="text-sm leading-relaxed text-ink-muted">{entry.description}</span>
+          <span className="text-[13px] leading-relaxed text-ink-muted">{entry.description}</span>
         </button>
       ))}
     </div>

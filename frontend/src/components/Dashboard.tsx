@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 
 import { DocumentMenu } from "@/components/DocumentMenu";
-import { SunRule } from "@/components/SunMeter";
 import { cardButtonClassName, cardGridClassName, cardTitleClassName } from "@/lib/cardStyles";
 import { documentTypeCode } from "@/lib/documentTypeCode";
 import { fetchSavedDocuments } from "@/lib/savedDocumentsApi";
@@ -46,10 +45,10 @@ export function Dashboard({ onResume, onCreateNew, refreshKey, actionError }: Da
   }
 
   return (
-    <div className="flex flex-col gap-7">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-5">
         <div>
-          <p className="groove-eyebrow">{showMenu ? "Pick a template" : "Pick up where you left off"}</p>
+          <p className="ui-eyebrow">{showMenu ? "Pick a template" : "Pick up where you left off"}</p>
           <h2 className="type-display mt-2 text-2xl text-heading sm:text-3xl">Your Documents</h2>
         </div>
         {/* Starting a document is the primary action; backing out of the
@@ -57,27 +56,30 @@ export function Dashboard({ onResume, onCreateNew, refreshKey, actionError }: Da
         <button
           type="button"
           onClick={() => setShowMenu((current) => !current)}
-          className={`groove-btn ${showMenu ? "groove-btn-quiet" : "groove-btn-primary"}`}
+          className={`ui-btn ${showMenu ? "ui-btn-quiet" : "ui-btn-primary"}`}
         >
           {showMenu ? "Cancel" : "+ New Document"}
         </button>
       </div>
 
-      {/* The masthead's rule, repeated under the page heading. */}
-      <SunRule className="overflow-hidden rounded-full" />
-
-      {actionError && <p className="text-sm font-medium text-ember-ink">{actionError}</p>}
+      {actionError && (
+        <p className="border-l-2 border-flag py-1 pl-3 text-sm font-medium text-flag-ink">
+          {actionError}
+        </p>
+      )}
 
       {showMenu && <DocumentMenu onSelect={handleCreateNew} />}
 
-      {!showMenu && loadError && <p className="text-sm font-medium text-ember-ink">{loadError}</p>}
-
-      {!showMenu && !loadError && !documents && (
-        <p className="groove-eyebrow">Loading your documents…</p>
+      {!showMenu && loadError && (
+        <p className="border-l-2 border-flag py-1 pl-3 text-sm font-medium text-flag-ink">
+          {loadError}
+        </p>
       )}
 
+      {!showMenu && !loadError && !documents && <p className="ui-eyebrow">Loading your documents…</p>}
+
       {!showMenu && documents && documents.length === 0 && (
-        <p className="max-w-md text-base leading-relaxed text-ink-muted">
+        <p className="max-w-md text-sm leading-relaxed text-ink-muted">
           You don&apos;t have any documents yet. Start one and the assistant will ask for what the
           template needs, a question at a time.
         </p>
@@ -92,7 +94,7 @@ export function Dashboard({ onResume, onCreateNew, refreshKey, actionError }: Da
               onClick={() => onResume(document.id)}
               className={cardButtonClassName}
             >
-              <span className="groove-chip">{documentTypeCode(document.documentTypeId)}</span>
+              <span className="ui-chip">{documentTypeCode(document.documentTypeId)}</span>
               <span className={cardTitleClassName}>{document.documentTypeName}</span>
               <span className="font-mono text-[11px] tracking-wide text-ink-muted">
                 Updated {new Date(document.updatedAt).toLocaleString()}

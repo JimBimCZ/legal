@@ -10,14 +10,13 @@ function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "document";
 }
 
-// Sits on the masthead, so both states are styled against plum rather than the
-// light panels used elsewhere. Enabled, it takes the marigold of a full sun -
-// the preview's meter and this button unlock together, and it is the only
-// place in the interface the accent appears as a fill.
-const enabledClassName = "groove-btn groove-btn-sun";
+// Completion is solid ink, not colour: in a monochrome system the strongest
+// mark available is already the filled one, so the preview's measure and this
+// button reach it together. Blocked, it is a hairline outline - present and
+// focusable, but plainly not yet the thing to press.
+const enabledClassName = "ui-btn ui-btn-primary";
 
-const disabledClassName =
-  "groove-btn cursor-not-allowed border-on-shell/20 bg-transparent text-on-shell/45 shadow-none";
+const disabledClassName = "ui-btn cursor-not-allowed border-line text-ink-faint";
 
 interface DownloadButtonProps {
   documentDetail: DocumentDetail;

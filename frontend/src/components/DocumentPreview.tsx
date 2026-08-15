@@ -1,4 +1,4 @@
-import { SunMeter } from "@/components/SunMeter";
+import { FieldRule } from "@/components/FieldRule";
 import { headingSeparator } from "@/lib/clauseHeading";
 import { fieldDisplayValue, unfilledFieldCount } from "@/lib/documentFields";
 import type { DocumentDetail, DocumentFields } from "@/types/document";
@@ -8,15 +8,9 @@ interface DocumentPreviewProps {
   values: DocumentFields;
 }
 
-// A blank reads as a rule waiting to be written on. Brick is spent here and on
-// errors and nowhere else, so an unanswered field is findable at a glance in a
-// long document without the page turning into a highlighter test.
-const blankClassName =
-  "text-ink-muted underline decoration-ember decoration-dotted underline-offset-4";
-
 // Section labels sit on a hairline that spans the column, so the page divides
 // into filed sections rather than free-floating headings.
-const sectionHeadingClassName = "groove-eyebrow mt-9 block border-b border-line pb-2";
+const sectionHeadingClassName = "ui-eyebrow mt-8 block border-b border-line pb-2";
 
 export function DocumentPreview({ documentDetail, values }: DocumentPreviewProps) {
   const total = documentDetail.fields.length;
@@ -29,16 +23,24 @@ export function DocumentPreview({ documentDetail, values }: DocumentPreviewProps
         : `${filled} of ${total} fields filled`;
 
   return (
-    <article className="groove-panel overflow-hidden">
-      {/* The sun rises across the top of the page as the chat answers fields. */}
-      <header className="border-b border-line bg-canvas px-6 pt-6 pb-4 text-center">
-        <SunMeter filled={filled} total={total} className="mx-auto h-14 w-28 text-heading" />
-        <p className="groove-eyebrow mt-2.5" aria-hidden="true">
-          {caption}
-        </p>
+    <article className="ui-panel overflow-hidden">
+      {/* The measure runs across the head of the document, striking a tick as
+          each field is answered. */}
+      <header className="border-b border-line bg-canvas px-6 pt-5 pb-4">
+        <div className="flex items-baseline justify-between gap-4">
+          <p className="ui-eyebrow" aria-hidden="true">
+            {caption}
+          </p>
+          {total > 0 && (
+            <span className="font-mono text-[11px] tabular-nums text-ink-muted" aria-hidden="true">
+              {String(filled).padStart(2, "0")}/{String(total).padStart(2, "0")}
+            </span>
+          )}
+        </div>
+        <FieldRule filled={filled} total={total} className="mt-2.5" />
       </header>
 
-      <div className="px-7 pt-7 pb-8 sm:px-9">
+      <div className="px-6 pt-7 pb-8 sm:px-8">
         <h2 className="type-display text-2xl text-heading">{documentDetail.name}</h2>
 
         <h3 className={sectionHeadingClassName}>The Particulars</h3>
@@ -54,7 +56,7 @@ export function DocumentPreview({ documentDetail, values }: DocumentPreviewProps
                 <dt className="w-44 shrink-0 font-mono text-[11px] uppercase tracking-wider text-ink-muted">
                   {field.label}
                 </dt>
-                <dd className={isFilled ? "type-doc font-semibold text-ink" : blankClassName}>
+                <dd className={isFilled ? "type-doc font-semibold text-ink" : "ui-blank"}>
                   {text}
                 </dd>
               </div>
@@ -63,15 +65,11 @@ export function DocumentPreview({ documentDetail, values }: DocumentPreviewProps
         </dl>
 
         <h3 className={sectionHeadingClassName}>Standard Terms</h3>
-        <div className="type-doc mt-4 space-y-4 text-[15px] leading-[1.75] text-ink">
+        <div className="type-doc mt-4 space-y-4 text-[14px] text-ink">
           {documentDetail.blocks.map((block, index) => (
             <p key={index} className={block.level === 2 ? "ml-6" : ""}>
-              {/* Muted, not accented - a whole contract of orange numerals is
-                  the loudest thing on the page, and they only need to be
-                  findable, not emphatic. */}
-              <span className="font-mono text-[12px] font-bold text-ink-muted">
-                {block.number}.{" "}
-              </span>
+              {/* Clause numbers only need to be findable, not emphatic. */}
+              <span className="font-mono text-[12px] text-ink-muted">{block.number}. </span>
               {block.heading && (
                 <span className="font-semibold">
                   {block.heading}
@@ -86,7 +84,7 @@ export function DocumentPreview({ documentDetail, values }: DocumentPreviewProps
                     values,
                   );
                   return (
-                    <span key={runIndex} className={isFilled ? "font-semibold" : blankClassName}>
+                    <span key={runIndex} className={isFilled ? "font-semibold" : "ui-blank"}>
                       {text}
                     </span>
                   );

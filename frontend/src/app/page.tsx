@@ -7,7 +7,7 @@ import { Dashboard } from "@/components/Dashboard";
 import { DocumentChat } from "@/components/DocumentChat";
 import { DocumentPreview } from "@/components/DocumentPreview";
 import { DownloadButton } from "@/components/DownloadButton";
-import { SunMeter, SunRule } from "@/components/SunMeter";
+import { FieldRule } from "@/components/FieldRule";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { fetchCurrentUser, signOut } from "@/lib/authApi";
 import { fetchDocumentDetail } from "@/lib/documentsApi";
@@ -18,8 +18,7 @@ import type { SavedDocumentDetail } from "@/types/savedDocument";
 
 type View = "loading" | "auth" | "dashboard" | "creator";
 
-const linkButtonClassName =
-  "groove-link font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-on-shell/70 transition-colors hover:text-marigold";
+const linkButtonClassName = "ui-link ui-eyebrow";
 
 export default function Home() {
   const [view, setView] = useState<View>("loading");
@@ -127,8 +126,8 @@ export default function Home() {
   if (view === "loading") {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-canvas">
-        <SunMeter variant="mark" filled={1} total={1} className="h-16 w-32 text-heading" />
-        <p className="groove-eyebrow">Loading…</p>
+        <FieldRule variant="mark" filled={1} total={1} className="w-24" />
+        <p className="ui-eyebrow">Loading…</p>
       </div>
     );
   }
@@ -148,7 +147,10 @@ export default function Home() {
 
   return (
     <div className="flex flex-1 flex-col bg-canvas">
-      <header className="groove-shell">
+      {/* A hairline rule instead of a solid bar: in a monochrome system a heavy
+          masthead spends the strongest mark on chrome, leaving nothing for the
+          primary action or the filled meter. */}
+      <header className="border-b border-line bg-paper">
         {/* Three columns rather than justify-between so the download button is
             optically centred in the masthead regardless of how wide the title
             block or the signed-in email happen to be. Narrow screens can't fit
@@ -158,21 +160,18 @@ export default function Home() {
             the same breakpoint - going three-wide any earlier makes the title
             and both action links wrap. */}
         <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto] items-center gap-x-4 gap-y-3 px-6 py-4 lg:grid-cols-[1fr_auto_1fr]">
-          <div className="flex items-center gap-3">
-            <SunMeter
-              variant="mark"
-              filled={1}
-              total={1}
-              className="hidden h-8 w-16 shrink-0 text-on-shell/60 sm:block"
-            />
-            <div>
-              <h1 className="type-display text-lg lg:text-xl">Legal Document Creator</h1>
-              <p className="mt-0.5 hidden text-xs text-on-shell/60 lg:block">
-                {view === "creator"
-                  ? "Answer a question at a time. The document fills itself in."
-                  : "Pick a template, then talk your way through it."}
-              </p>
-            </div>
+          <div>
+            {/* The meter with every tick struck - the same mark that tracks
+                progress on the document itself. */}
+            <FieldRule variant="mark" filled={1} total={1} className="mb-2.5 w-24" />
+            <h1 className="type-display text-base text-heading lg:text-lg">
+              Legal Document Creator
+            </h1>
+            <p className="mt-0.5 hidden text-xs text-ink-muted lg:block">
+              {view === "creator"
+                ? "Answer a question at a time. The document fills itself in."
+                : "Pick a template, then talk your way through it."}
+            </p>
           </div>
           <div className="order-last col-span-2 justify-self-center lg:order-none lg:col-span-1">
             {view === "creator" && documentDetail && (
@@ -187,7 +186,7 @@ export default function Home() {
             )}
             {/* Held back to `xl`: at `lg` the third column has just appeared and
                 the email's width pushes both action links onto two lines. */}
-            <span className="hidden font-mono text-[11px] text-on-shell/50 xl:inline">
+            <span className="hidden font-mono text-[11px] text-ink-muted xl:inline">
               {currentUser?.email}
             </span>
             <button type="button" onClick={handleLogout} className={linkButtonClassName}>
@@ -197,8 +196,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* The sun mark unrolled: the same four rings, in the same order. */}
-        <SunRule />
       </header>
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
@@ -214,7 +211,7 @@ export default function Home() {
         {view === "creator" && savedDocumentId !== null && documentTypeId !== null && (
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
             <section aria-labelledby="document-chat-heading" className="flex flex-col gap-3">
-              <h2 id="document-chat-heading" className="groove-eyebrow pl-1">
+              <h2 id="document-chat-heading" className="ui-eyebrow">
                 {documentTypeName} Details
               </h2>
               <DocumentChat
@@ -230,17 +227,17 @@ export default function Home() {
               aria-labelledby="document-preview-heading"
               className="flex flex-col gap-3 lg:sticky lg:top-8 lg:self-start"
             >
-              <h2 id="document-preview-heading" className="groove-eyebrow pl-1">
+              <h2 id="document-preview-heading" className="ui-eyebrow">
                 Document Preview
               </h2>
               {documentDetail ? (
                 <DocumentPreview documentDetail={documentDetail} values={fields} />
               ) : (
-                <div className="groove-panel p-6">
+                <div className="ui-panel p-6">
                   {isLoadingDocument ? (
-                    <p className="groove-eyebrow text-ink-muted">Loading document…</p>
+                    <p className="ui-eyebrow">Loading document…</p>
                   ) : documentError ? (
-                    <p className="text-sm font-medium text-ember-ink">{documentError}</p>
+                    <p className="text-sm font-medium text-flag-ink">{documentError}</p>
                   ) : null}
                 </div>
               )}

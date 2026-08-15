@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 const buttonClassName =
-  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-on-shell/25 text-on-shell/70 transition-colors hover:border-marigold hover:text-marigold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marigold";
+  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-line text-ink-muted transition-colors hover:border-ink hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink";
 
 const listeners = new Set<() => void>();
 

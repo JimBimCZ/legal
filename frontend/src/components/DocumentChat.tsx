@@ -13,7 +13,7 @@ interface DocumentChatProps {
   onDocumentTypeChanged: (documentTypeId: string, documentTypeName: string) => void;
 }
 
-const bubbleClassName = "max-w-[85%] px-4 py-2.5 text-sm leading-relaxed";
+const bubbleClassName = "max-w-[85%] rounded px-3.5 py-2.5 text-sm leading-relaxed";
 
 export function DocumentChat({
   savedDocumentId,
@@ -77,7 +77,7 @@ export function DocumentChat({
   }
 
   return (
-    <div className="groove-panel flex flex-col gap-4 p-5">
+    <div className="ui-panel flex flex-col gap-4 p-4">
       <div
         ref={logRef}
         role="log"
@@ -88,9 +88,11 @@ export function DocumentChat({
           <div
             key={index}
             className={`${bubbleClassName} ${
+              // What you said is set in solid ink; what the assistant said is
+              // outlined. The distinction is weight, not hue.
               message.role === "assistant"
-                ? "self-start rounded-lg rounded-bl-sm border border-line bg-canvas text-ink"
-                : "self-end rounded-lg rounded-br-sm bg-action text-on-action"
+                ? "self-start border border-line bg-canvas text-ink"
+                : "self-end bg-action text-on-action"
             }`}
           >
             {message.content}
@@ -98,25 +100,25 @@ export function DocumentChat({
         ))}
         {isLoading && (
           <div
-            className={`${bubbleClassName} flex items-center gap-2 self-start rounded-lg rounded-bl-sm border border-line bg-canvas text-ink-muted`}
+            className={`${bubbleClassName} flex items-center gap-2 self-start border border-line bg-canvas text-ink-muted`}
           >
-            <span className="groove-eyebrow">Thinking…</span>
+            <span className="ui-eyebrow">Thinking…</span>
             <span aria-hidden="true" className="flex items-center gap-1">
-              <span className="groove-dot" />
-              <span className="groove-dot" />
-              <span className="groove-dot" />
+              <span className="ui-dot" />
+              <span className="ui-dot" />
+              <span className="ui-dot" />
             </span>
           </div>
         )}
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-ember bg-ember/5 px-3.5 py-2.5 text-sm font-medium text-ember-ink">
+        <div className="flex items-center justify-between gap-3 border-l-2 border-flag py-1 pl-3 text-sm font-medium text-flag-ink">
           <span>{error}</span>
           <button
             type="button"
             onClick={handleRetry}
-            className="groove-link shrink-0 underline underline-offset-4 hover:text-ink"
+            className="shrink-0 underline underline-offset-4 hover:text-ink"
           >
             Retry
           </button>
@@ -135,13 +137,13 @@ export function DocumentChat({
           onKeyDown={handleKeyDown}
           placeholder="Type your answer…"
           disabled={isLoading}
-          className="groove-input"
+          className="ui-input"
         />
         <button
           type="button"
           onClick={handleSend}
           disabled={isLoading || !input.trim()}
-          className="groove-btn groove-btn-primary"
+          className="ui-btn ui-btn-primary"
         >
           Send
         </button>

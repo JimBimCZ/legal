@@ -49,28 +49,32 @@ Backend available at http://localhost:8000
 
 ## Color Scheme
 
-Superseded twice - by the groovy redesign, then narrowed again by the
-professional pass (see Implementation Status). The original navy, sky blue,
-grape and lagoon are all retired. What is left is one accent, one alert, and a
-warm neutral ramp:
+Superseded three times - the original navy/sky-blue scheme, then the groovy
+sunset palette, then the professional pass that cut it to two hues, and now
+"The Register" (see Implementation Status), which is monochrome. Everything
+before it is retired.
 
-- Marigold: `#ecad0a` (the sun; the only saturated fill in the interface, spent
-  on the unlocked Download button, focus rings, and the sun mark)
-- Sunrise ramp: `#ecad0a` → `#d38a12` → `#b8601f` → `#8f3a1a` (the four sun
-  rings inside out, and the same ramp unrolled as the hairline rule)
-- Brick: `#b8461f` (`#9c3512` as small text) - errors, and the dotted rule
-  under an unanswered field. Nothing else
-- Plum: `#2a1a23` (masthead, primary actions, outlines, offset shadows).
-  Dark mode lifts the *action* to `#4e3947` so it does not vanish on a
-  near-black panel, while the masthead itself goes darker
-- Paper / canvas: `#fffaf2` / `#efe7d9`, rule `#ddd0bb`
-- Ink / muted ink: `#2b1b24` / `#6f5f5a`
+- Canvas / paper: `#fafafa` / `#ffffff` (dark: `#0a0a0b` / `#131316`)
+- Rules: `line` `#e4e4e7`, `line-strong` `#d4d4d8` (dark: `#26262b` / `#35353c`)
+- Text: `ink` `#18181b`, `ink-muted` `#71717a` (dark: `#f4f4f5` / `#a1a1aa`)
+- `ink-faint` `#a1a1aa` (dark `#52525b`) - **rules and ticks only, never text.**
+  It does not clear 4.5:1 on either theme's paper and is not meant to
+- Action: `#18181b` on `#ffffff` (dark: inverted to `#f4f4f5` on `#09090b`)
+- Flag: `#d6341a` (`#b02a11` as small text; dark `#f0562f` / `#ff8a6b`) - the
+  one accent
 
-Three rules keep it coherent: one accent, so marigold appearing anywhere means
-something; authority is dark rather than loud, so the primary action is plum
-and a screen of controls still reads as paperwork; and a fill is never used for
-small text - each accent that has to appear as a label has an `-ink` twin
-clearing 4.5:1 on its own theme's paper.
+Four rules keep it coherent:
+
+1. **Emphasis is contrast, not colour.** Solid ink is already the most
+   emphatic mark available, so it carries authority and completion: the filled
+   measure, the primary button, the message you sent.
+2. **The accent means exactly one thing - attention.** Errors, and the rule
+   under an unanswered field. It never marks success, because ink does that
+   better, and it never decorates.
+3. **A fill is never used for small text**; each accent that appears as a label
+   has an `-ink` twin clearing 4.5:1 on its own theme's paper.
+4. **Dark mode is a true inversion**, not a re-tune - the primary button is
+   solid ink on paper in light and solid paper on ink in dark.
 
 ## Implementation Status
 
@@ -232,6 +236,45 @@ clearing 4.5:1 on its own theme's paper.
   than the parser silently swallowing content
 - Guarded by `TestListTrailer` plus two real-catalog tests; verified to fail
   (3 tests) against a neutered `_LIST_TRAILER`. Backend suite is 86 passing
+
+### The Register (monochrome rework)
+- Replaces the warm-paper identity entirely, per a brief pinning "sleek and
+  professional, black and white, very clear font". A legal instrument rather
+  than an app: hairline rules, no shadows anywhere, 4px radii
+- **Type is one family, Public Sans, throughout** (`layout.tsx`) - interface
+  and agreement alike, split into registers by size and leading in
+  `globals.css` rather than by typeface. Chosen over Inter deliberately:
+  Public Sans is the US Web Design System's face, drawn for setting official
+  documents legibly at every size. IBM Plex Mono is the third "record" register
+  for docket codes, clause numbers, field counts, and eyebrow labels. Fraunces,
+  Jost and Space Mono are gone
+- **The signature is now a ruled measure** (`components/FieldRule.tsx`,
+  replacing `SunMeter.tsx`): one tick per field, struck solid left to right as
+  the chat answers them. The same mark with every tick struck is the wordmark
+  in the masthead, on the sign-in card, in the loading state, and as the PDF
+  letterhead - so the thing you see in the header and the thing tracking your
+  progress are one object at two states. Rendered as flex segments rather than
+  SVG because the tick count *is* the document's field count (4 to 25), and
+  flex divides a rule into N parts at any width with no arithmetic
+- `role="progressbar"` with `aria-valuenow/min/max`, upgraded from the old
+  mark's `role="img"`; no test depended on the old markup
+- The 12 `.groove-*` classes are renamed `.ui-*`. Leaving "groove" on a
+  monochrome Swiss design would actively mislead the next reader
+- `--color-action` stays its own token, as it was in the previous pass, but now
+  for the opposite reason: light and dark are true inversions of each other
+  (solid ink on paper, solid paper on ink) rather than two tunings of a plum
+- The masthead is a hairline rule, not a solid bar. In a monochrome system a
+  heavy masthead spends the strongest mark available on chrome, leaving nothing
+  for the primary action or the filled measure
+- **The PDF is strictly monochrome** even though the app has one accent: the
+  screen spends that accent on what is still unanswered, but a downloaded
+  agreement is finished, and a red mark in a printed contract reads as a
+  correction. It also moves from Times to Helvetica - the closest of
+  react-pdf's three built-in standard families to the screen's grotesque, so
+  the printed page matches with no font files to bundle
+- Purely visual - no route, API, or schema change. All 75 frontend tests pass
+  unmodified; verified in the running app at 1280px and 390px in both themes,
+  and the PDF confirmed to still generate under the new font stack
 
 ### Current API Endpoints
 - `POST /api/auth/signup` - Create account, set session cookie, return user record

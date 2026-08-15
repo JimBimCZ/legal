@@ -1,26 +1,21 @@
 import type { Metadata } from "next";
-import { Fraunces, Jost, Space_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Public_Sans } from "next/font/google";
 import "./globals.css";
 
-// One variable serif covers both the chrome and the document body - the
-// SOFT/WONK/opsz axes are driven from `.type-display` / `.type-doc` in
-// globals.css, so the two never need separate families. WONK stays loaded even
-// though the display register now runs it at 0: the axis has to be requested
-// at build time for the variation-settings declaration to resolve at all.
-const displaySerif = Fraunces({
-  variable: "--font-display",
-  subsets: ["latin"],
-  axes: ["SOFT", "WONK", "opsz"],
-});
-
-const uiSans = Jost({
+// One family sets the whole product - interface and agreement alike - split
+// into registers by size and leading in globals.css rather than by typeface.
+// Public Sans is the US Web Design System's face, drawn for setting official
+// documents legibly at every size, which is this product's job exactly.
+const uiSans = Public_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
 });
 
-const uiMono = Space_Mono({
+// The "record" voice: docket codes, clause numbers, field counts, and the
+// labels that behave like references rather than prose.
+const uiMono = IBM_Plex_Mono({
   variable: "--font-mono",
-  weight: ["400", "700"],
+  weight: ["400", "500"],
   subsets: ["latin"],
 });
 
@@ -38,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${displaySerif.variable} ${uiSans.variable} ${uiMono.variable} h-full antialiased`}
+      className={`${uiSans.variable} ${uiMono.variable} h-full antialiased`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
