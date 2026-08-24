@@ -30,9 +30,15 @@ def client(tmp_path, monkeypatch):
 
     monkeypatch.setenv("STATIC_DIR", str(tmp_path / "static-does-not-exist"))
 
+    # The schema is created lazily and remembered per database; each test starts
+    # from a clean one, so that memory has to be cleared alongside it.
+    from app.db import reset_schema_cache
+
+    reset_schema_cache()
+
     from app.main import app
 
-    with TestClient(app) as test_client:  # triggers lifespan -> fresh init_db()
+    with TestClient(app) as test_client:
         yield test_client
 
 

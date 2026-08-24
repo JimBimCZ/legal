@@ -1,4 +1,5 @@
 import sqlite3
+import threading
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import Any
@@ -166,7 +167,44 @@ def init_db() -> None:
         conn.close()
 
 
+_schema_lock = threading.Lock()
+_schema_target: str | None = None
+
+
+def _current_target() -> str:
+    return get_database_url() or str(get_db_path())
+
+
+def reset_schema_cache() -> None:
+    """Forget that the schema was created, so the next connection rebuilds it.
+    Only needed by tests, which reset the database between cases."""
+    global _schema_target
+    with _schema_lock:
+        _schema_target = None
+
+
+def ensure_schema() -> None:
+    """Create the schema on first use, at most once per database.
+
+    Deliberately *not* called during application startup. Vercel gives a
+    container a limited budget to boot, and reaching Neon inside it was enough
+    to exceed that - Neon's free tier suspends when idle and takes seconds to
+    wake, so every cold start was killed mid-initialization and retried in a
+    loop. Paying that cost on the first request instead keeps startup instant,
+    and leaves /api/health answerable without touching the database at all."""
+    global _schema_target
+    target = _current_target()
+    if _schema_target == target:
+        return
+    with _schema_lock:
+        if _schema_target == target:
+            return
+        init_db()
+        _schema_target = target
+
+
 def get_connection() -> Iterator[Database]:
+    ensure_schema()
     db = _connect()
     try:
         yield db
