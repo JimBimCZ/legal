@@ -1,9 +1,7 @@
-import sqlite3
-
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from .. import saved_documents as repo
-from ..db import get_connection
+from ..db import Database, get_connection
 from ..deps import get_current_user
 from ..schemas import (
     CreateSavedDocumentRequest,
@@ -24,7 +22,7 @@ router = APIRouter(
 @router.get("", response_model=list[SavedDocumentSummary])
 def list_saved_documents(
     user: UserResponse = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(get_connection),
+    db: Database = Depends(get_connection),
 ) -> list[SavedDocumentSummary]:
     return repo.list_documents_for_user(db, user.id)
 
@@ -33,7 +31,7 @@ def list_saved_documents(
 def create_saved_document(
     payload: CreateSavedDocumentRequest,
     user: UserResponse = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(get_connection),
+    db: Database = Depends(get_connection),
 ) -> SavedDocumentDetail:
     try:
         return repo.create_document(db, user.id, payload.documentTypeId)
@@ -47,7 +45,7 @@ def create_saved_document(
 def get_saved_document(
     document_id: int,
     user: UserResponse = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(get_connection),
+    db: Database = Depends(get_connection),
 ) -> SavedDocumentDetail:
     detail = repo.get_document_for_user(db, user.id, document_id)
     if detail is None:
@@ -60,7 +58,7 @@ def send_document_message(
     document_id: int,
     payload: SendDocumentMessageRequest,
     user: UserResponse = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(get_connection),
+    db: Database = Depends(get_connection),
 ) -> SendDocumentMessageResponse:
     try:
         return repo.send_message(db, user.id, document_id, payload.content)

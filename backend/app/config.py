@@ -9,6 +9,14 @@ def get_db_path() -> Path:
     return Path(os.environ.get("DATABASE_PATH", BACKEND_ROOT / "data" / "app.db"))
 
 
+def get_database_url() -> str | None:
+    """Postgres connection string. Set on Vercel by the Neon integration
+    (which provides DATABASE_URL); absent locally, where SQLite is used
+    instead. Prefer the pooled URL - the container scales to zero and back,
+    so connections are opened and dropped often."""
+    return os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or None
+
+
 def get_static_dir() -> Path:
     return Path(os.environ.get("STATIC_DIR", BACKEND_ROOT / "static"))
 

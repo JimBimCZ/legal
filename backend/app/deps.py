@@ -1,15 +1,13 @@
-import sqlite3
-
 from fastapi import Cookie, Depends, HTTPException, status
 
-from .db import get_connection
+from .db import Database, get_connection
 from .schemas import UserResponse
 from .session import SESSION_COOKIE_NAME, verify_session_token
 
 
 def get_current_user(
     session: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
-    db: sqlite3.Connection = Depends(get_connection),
+    db: Database = Depends(get_connection),
 ) -> UserResponse:
     user_id = verify_session_token(session) if session else None
     if user_id is None:

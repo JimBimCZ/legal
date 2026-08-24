@@ -1,9 +1,7 @@
-import sqlite3
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from ..config import get_cookie_secure
-from ..db import get_connection
+from ..db import Database, get_connection
 from ..deps import get_current_user
 from ..schemas import SigninRequest, SignupRequest, UserResponse
 from ..security import hash_password, verify_password
@@ -25,7 +23,7 @@ def _set_session_cookie(response: Response, user_id: int) -> None:
 
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def signup(
-    payload: SignupRequest, response: Response, db: sqlite3.Connection = Depends(get_connection)
+    payload: SignupRequest, response: Response, db: Database = Depends(get_connection)
 ) -> UserResponse:
     existing = db.execute(
         "SELECT id FROM users WHERE email = ?", (payload.email,)
@@ -34,13 +32,13 @@ def signup(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
     hashed = hash_password(payload.password)
-    cursor = db.execute(
+    user_id = db.insert_returning_id(
         "INSERT INTO users (email, hashed_password) VALUES (?, ?)",
         (payload.email, hashed),
     )
     db.commit()
     row = db.execute(
-        "SELECT id, email, created_at FROM users WHERE id = ?", (cursor.lastrowid,)
+        "SELECT id, email, created_at FROM users WHERE id = ?", (user_id,)
     ).fetchone()
     _set_session_cookie(response, row["id"])
     return UserResponse(**dict(row))
@@ -48,7 +46,7 @@ def signup(
 
 @router.post("/signin", response_model=UserResponse)
 def signin(
-    payload: SigninRequest, response: Response, db: sqlite3.Connection = Depends(get_connection)
+    payload: SigninRequest, response: Response, db: Database = Depends(get_connection)
 ) -> UserResponse:
     row = db.execute(
         "SELECT id, email, hashed_password, created_at FROM users WHERE email = ?",
