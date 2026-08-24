@@ -6,7 +6,6 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from .config import BACKEND_ROOT, get_static_dir
-from .db import init_db
 from .routes import auth, chat, documents, health, saved_documents
 
 # No-op if the file is absent (e.g. in the Docker image, where the key is
@@ -16,7 +15,10 @@ load_dotenv(BACKEND_ROOT.parent / ".env")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    init_db()
+    # Intentionally empty. Creating the schema used to happen here, but startup
+    # runs inside a fixed boot budget on Vercel and connecting to Neon blew it,
+    # killing and restarting every cold start. The schema is now created on the
+    # first request that needs a connection instead - see db.ensure_schema.
     yield
 
 

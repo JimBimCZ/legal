@@ -1,9 +1,22 @@
 import re
 
-from litellm import completion
 from pydantic import BaseModel, create_model
 
 from .documents import CatalogEntry, FieldDef, get_document_detail, load_catalog
+
+
+def completion(**kwargs):
+    """Lazy stand-in for litellm.completion.
+
+    litellm costs ~4.5s to import, which on Vercel is spent inside the
+    container's startup budget and was enough to blow it - every cold start got
+    killed mid-initialization and retried in a loop. Importing on the first
+    chat turn instead keeps startup instant; by then the container is already
+    serving, and nothing else in the app needs litellm at all."""
+    from litellm import completion as litellm_completion
+
+    return litellm_completion(**kwargs)
+
 
 MODEL = "openrouter/openai/gpt-oss-120b"
 EXTRA_BODY = {"provider": {"order": ["cerebras"]}}
