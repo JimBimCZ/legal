@@ -193,15 +193,18 @@ def test_saved_documents_require_authentication(client):
 def test_stand_in_field_values_stored_earlier_open_as_unfilled(authed_client):
     """Documents saved before stand-in values were normalized away must not
     still present as complete (and therefore downloadable) when reopened."""
-    import sqlite3
-
-    from app.db import get_db_path
+    # Seeded through the app's own connection rather than a raw sqlite3 one,
+    # so this test exercises whichever backend the suite is running against.
+    from app.db import get_connection
 
     created = authed_client.post(
         "/api/saved-documents", json={"documentTypeId": "Mutual-NDA.md"}
     ).json()
 
-    db = sqlite3.connect(get_db_path())
+    # The generator itself is held, not just the connection it yields - letting
+    # it fall out of scope would run its finally block and close the database.
+    connection = get_connection()
+    db = next(connection)
     try:
         db.execute(
             "UPDATE saved_documents SET fields_json = ? WHERE id = ?",
@@ -212,7 +215,7 @@ def test_stand_in_field_values_stored_earlier_open_as_unfilled(authed_client):
         )
         db.commit()
     finally:
-        db.close()
+        connection.close()
 
     detail = authed_client.get(f"/api/saved-documents/{created['id']}").json()
     assert detail["fields"]["party1Name"] == ""

@@ -1,6 +1,7 @@
 import json
-import sqlite3
+from typing import Any
 
+from .db import Database, utc_now_text
 from .document_chat import clean_fields, run_chat_turn
 from .documents import load_catalog
 from .schemas import ChatMessage, SavedDocumentDetail, SavedDocumentSummary, SendDocumentMessageResponse
@@ -14,7 +15,7 @@ class UnknownDocumentTypeError(Exception):
     pass
 
 
-def _row_to_summary(row: sqlite3.Row) -> SavedDocumentSummary:
+def _row_to_summary(row: Any) -> SavedDocumentSummary:
     return SavedDocumentSummary(
         id=row["id"],
         documentTypeId=row["document_type_id"],
@@ -24,7 +25,7 @@ def _row_to_summary(row: sqlite3.Row) -> SavedDocumentSummary:
     )
 
 
-def _messages_for_document(db: sqlite3.Connection, document_id: int) -> list[ChatMessage]:
+def _messages_for_document(db: Database, document_id: int) -> list[ChatMessage]:
     rows = db.execute(
         "SELECT role, content FROM chat_messages WHERE document_id = ? ORDER BY id",
         (document_id,),
@@ -39,7 +40,7 @@ def _greeting_for(document_type_name: str) -> str:
     )
 
 
-def list_documents_for_user(db: sqlite3.Connection, user_id: int) -> list[SavedDocumentSummary]:
+def list_documents_for_user(db: Database, user_id: int) -> list[SavedDocumentSummary]:
     rows = db.execute(
         "SELECT id, document_type_id, document_type_name, created_at, updated_at "
         "FROM saved_documents WHERE user_id = ? ORDER BY updated_at DESC",
@@ -49,7 +50,7 @@ def list_documents_for_user(db: sqlite3.Connection, user_id: int) -> list[SavedD
 
 
 def get_document_for_user(
-    db: sqlite3.Connection, user_id: int, document_id: int
+    db: Database, user_id: int, document_id: int
 ) -> SavedDocumentDetail | None:
     row = db.execute(
         "SELECT id, document_type_id, document_type_name, fields_json, created_at, updated_at "
@@ -73,17 +74,16 @@ def get_document_for_user(
     )
 
 
-def create_document(db: sqlite3.Connection, user_id: int, document_type_id: str) -> SavedDocumentDetail:
+def create_document(db: Database, user_id: int, document_type_id: str) -> SavedDocumentDetail:
     entry = next((e for e in load_catalog() if e.id == document_type_id), None)
     if entry is None:
         raise UnknownDocumentTypeError(document_type_id)
 
-    cursor = db.execute(
+    document_id = db.insert_returning_id(
         "INSERT INTO saved_documents (user_id, document_type_id, document_type_name) "
         "VALUES (?, ?, ?)",
         (user_id, entry.id, entry.name),
     )
-    document_id = cursor.lastrowid
     db.execute(
         "INSERT INTO chat_messages (document_id, role, content) VALUES (?, 'assistant', ?)",
         (document_id, _greeting_for(entry.name)),
@@ -96,7 +96,7 @@ def create_document(db: sqlite3.Connection, user_id: int, document_type_id: str)
 
 
 def send_message(
-    db: sqlite3.Connection, user_id: int, document_id: int, content: str
+    db: Database, user_id: int, document_id: int, content: str
 ) -> SendDocumentMessageResponse:
     row = db.execute(
         "SELECT id, document_type_id, document_type_name, fields_json "
@@ -129,8 +129,14 @@ def send_message(
     )
     db.execute(
         "UPDATE saved_documents SET document_type_id = ?, document_type_name = ?, "
-        "fields_json = ?, updated_at = datetime('now') WHERE id = ?",
-        (document_type_id, document_type_name, json.dumps(result.fields), document_id),
+        "fields_json = ?, updated_at = ? WHERE id = ?",
+        (
+            document_type_id,
+            document_type_name,
+            json.dumps(result.fields),
+            utc_now_text(),
+            document_id,
+        ),
     )
     db.commit()
 
