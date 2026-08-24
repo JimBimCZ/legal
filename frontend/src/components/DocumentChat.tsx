@@ -13,11 +13,7 @@ interface DocumentChatProps {
   onDocumentTypeChanged: (documentTypeId: string, documentTypeName: string) => void;
 }
 
-const inputClassName =
-  "w-full rounded-sm border border-line bg-paper px-3 py-2 text-sm text-ink shadow-sm placeholder:text-ink-muted/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
-
-const sendButtonClassName =
-  "inline-flex items-center justify-center rounded-sm bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-500/50";
+const bubbleClassName = "max-w-[85%] rounded px-3.5 py-2.5 text-sm leading-relaxed";
 
 export function DocumentChat({
   savedDocumentId,
@@ -81,39 +77,48 @@ export function DocumentChat({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-sm border border-line bg-paper p-4 shadow-sm">
+    <div className="ui-panel flex flex-col gap-4 p-4">
       <div
         ref={logRef}
         role="log"
         aria-live="polite"
-        className="flex max-h-96 flex-col gap-3 overflow-y-auto"
+        className="-mr-2 flex max-h-96 min-h-64 flex-col gap-3 overflow-y-auto pr-2"
       >
         {messages.map((message, index) => (
           <div
             key={index}
-            className={`max-w-[85%] rounded-sm px-3 py-2 text-sm leading-relaxed ${
+            className={`${bubbleClassName} ${
+              // What you said is set in solid ink; what the assistant said is
+              // outlined. The distinction is weight, not hue.
               message.role === "assistant"
-                ? "self-start bg-navy-100 text-ink"
-                : "self-end bg-navy-950 text-white"
+                ? "self-start border border-line bg-canvas text-ink"
+                : "self-end bg-action text-on-action"
             }`}
           >
             {message.content}
           </div>
         ))}
         {isLoading && (
-          <div className="self-start rounded-sm bg-navy-100 px-3 py-2 font-mono text-xs uppercase tracking-widest text-ink-muted">
-            Thinking…
+          <div
+            className={`${bubbleClassName} flex items-center gap-2 self-start border border-line bg-canvas text-ink-muted`}
+          >
+            <span className="ui-eyebrow">Thinking…</span>
+            <span aria-hidden="true" className="flex items-center gap-1">
+              <span className="ui-dot" />
+              <span className="ui-dot" />
+              <span className="ui-dot" />
+            </span>
           </div>
         )}
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <div className="flex items-center justify-between gap-3 border-l-2 border-flag py-1 pl-3 text-sm font-medium text-flag-ink">
           <span>{error}</span>
           <button
             type="button"
             onClick={handleRetry}
-            className="shrink-0 font-medium underline underline-offset-2"
+            className="shrink-0 underline underline-offset-4 hover:text-ink"
           >
             Retry
           </button>
@@ -132,13 +137,13 @@ export function DocumentChat({
           onKeyDown={handleKeyDown}
           placeholder="Type your answer…"
           disabled={isLoading}
-          className={inputClassName}
+          className="ui-input"
         />
         <button
           type="button"
           onClick={handleSend}
           disabled={isLoading || !input.trim()}
-          className={sendButtonClassName}
+          className="ui-btn ui-btn-primary"
         >
           Send
         </button>

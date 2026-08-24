@@ -1,7 +1,7 @@
 import json
 import sqlite3
 
-from .document_chat import run_chat_turn
+from .document_chat import clean_fields, run_chat_turn
 from .documents import load_catalog
 from .schemas import ChatMessage, SavedDocumentDetail, SavedDocumentSummary, SendDocumentMessageResponse
 
@@ -64,7 +64,11 @@ def get_document_for_user(
         documentTypeName=row["document_type_name"],
         createdAt=row["created_at"],
         updatedAt=row["updated_at"],
-        fields=json.loads(row["fields_json"]),
+        # Also cleaned on read, not just on write, so a document that stored
+        # "not yet known"-style values before that normalization existed opens
+        # as unfilled (download blocked) instead of only healing once the user
+        # happens to send another chat message.
+        fields=clean_fields(json.loads(row["fields_json"])),
         messages=_messages_for_document(db, row["id"]),
     )
 

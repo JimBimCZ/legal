@@ -169,3 +169,89 @@ def test_chat_returns_502_when_llm_call_fails(authed_client, monkeypatch):
 def test_chat_requires_authentication(client, mock_completion):
     response = client.post("/api/chat", json={"messages": [{"role": "user", "content": "Hello"}]})
     assert response.status_code == 401
+
+
+def test_stand_in_values_are_stored_as_unfilled(authed_client, mock_completion):
+    """The model has been seen copying the prompt's own scaffolding into every
+    field on the very first turn. Stored verbatim those are non-blank, so the
+    frontend's "every field filled" gate unlocks the PDF download immediately
+    and renders the stand-in text into the document."""
+    mock_completion.queue.append(
+        {
+            "reply": "Who are the parties?",
+            "selectedDocument": "Cloud Service Agreement",
+            "fields": {
+                "customer": "(currently: not yet known)",
+                "provider": "Not yet known",
+                "governingLaw": "TBD",
+            },
+        }
+    )
+    response = authed_client.post(
+        "/api/chat",
+        json={
+            "messages": [{"role": "user", "content": "I need a cloud service agreement"}],
+            "selectedDocument": "CSA.md",
+            "fields": {},
+        },
+    )
+    body = response.json()
+    assert body["fields"]["customer"] == ""
+    assert body["fields"]["provider"] == ""
+    assert body["fields"]["governingLaw"] == ""
+
+
+def test_a_real_value_wearing_the_currently_wrapper_is_salvaged(authed_client, mock_completion):
+    mock_completion.queue.append(
+        {
+            "reply": "Noted.",
+            "selectedDocument": "Cloud Service Agreement",
+            "fields": {"customer": "(currently: Acme Inc.)"},
+        }
+    )
+    response = authed_client.post(
+        "/api/chat",
+        json={
+            "messages": [{"role": "user", "content": "Customer is Acme"}],
+            "selectedDocument": "CSA.md",
+            "fields": {},
+        },
+    )
+    assert response.json()["fields"]["customer"] == "Acme Inc."
+
+
+def test_stand_in_values_already_stored_are_re_asked_not_carried_forward(
+    authed_client, mock_completion
+):
+    mock_completion.queue.append(
+        {"reply": "Sure.", "selectedDocument": "Cloud Service Agreement", "fields": {}}
+    )
+    authed_client.post(
+        "/api/chat",
+        json={
+            "messages": [{"role": "user", "content": "Carry on"}],
+            "selectedDocument": "CSA.md",
+            "fields": {"customer": "not yet known", "provider": "Globex"},
+        },
+    )
+    system_prompt = mock_completion[0]["messages"][0]["content"]
+    assert "not yet known" not in system_prompt.lower().split("stand-in phrase")[0]
+    assert "Globex" in system_prompt
+
+
+def test_field_collection_prompt_does_not_annotate_fields_with_a_copyable_placeholder(
+    authed_client, mock_completion
+):
+    mock_completion.queue.append(
+        {"reply": "Sure.", "selectedDocument": "Cloud Service Agreement", "fields": {}}
+    )
+    authed_client.post(
+        "/api/chat",
+        json={
+            "messages": [{"role": "user", "content": "Hello"}],
+            "selectedDocument": "CSA.md",
+            "fields": {},
+        },
+    )
+    system_prompt = mock_completion[0]["messages"][0]["content"]
+    assert "(currently:" not in system_prompt

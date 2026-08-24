@@ -7,6 +7,7 @@ import { Dashboard } from "@/components/Dashboard";
 import { DocumentChat } from "@/components/DocumentChat";
 import { DocumentPreview } from "@/components/DocumentPreview";
 import { DownloadButton } from "@/components/DownloadButton";
+import { FieldRule } from "@/components/FieldRule";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { fetchCurrentUser, signOut } from "@/lib/authApi";
 import { fetchDocumentDetail } from "@/lib/documentsApi";
@@ -17,8 +18,7 @@ import type { SavedDocumentDetail } from "@/types/savedDocument";
 
 type View = "loading" | "auth" | "dashboard" | "creator";
 
-const linkButtonClassName =
-  "font-mono text-xs uppercase tracking-widest text-white/70 transition-colors hover:text-yellow-400";
+const linkButtonClassName = "ui-link ui-eyebrow";
 
 export default function Home() {
   const [view, setView] = useState<View>("loading");
@@ -125,8 +125,9 @@ export default function Home() {
 
   if (view === "loading") {
     return (
-      <div className="flex flex-1 items-center justify-center bg-canvas">
-        <p className="font-mono text-xs uppercase tracking-widest text-ink-muted">Loading…</p>
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-canvas">
+        <FieldRule variant="mark" filled={1} total={1} className="w-24" />
+        <p className="ui-eyebrow">Loading…</p>
       </div>
     );
   }
@@ -146,7 +147,10 @@ export default function Home() {
 
   return (
     <div className="flex flex-1 flex-col bg-canvas">
-      <header className="border-b border-navy-950 bg-navy-950 px-6 py-5">
+      {/* A hairline rule instead of a solid bar: in a monochrome system a heavy
+          masthead spends the strongest mark on chrome, leaving nothing for the
+          primary action or the filled meter. */}
+      <header className="border-b border-line bg-paper">
         {/* Three columns rather than justify-between so the download button is
             optically centred in the masthead regardless of how wide the title
             block or the signed-in email happen to be. Narrow screens can't fit
@@ -155,15 +159,18 @@ export default function Home() {
             `lg` rather than `sm` because the signed-in email only appears at
             the same breakpoint - going three-wide any earlier makes the title
             and both action links wrap. */}
-        <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto] items-center gap-x-4 gap-y-3 lg:grid-cols-[1fr_auto_1fr]">
+        <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto] items-center gap-x-4 gap-y-3 px-6 py-4 lg:grid-cols-[1fr_auto_1fr]">
           <div>
-            <h1 className="font-display text-lg tracking-tight text-white lg:text-xl">
+            {/* The meter with every tick struck - the same mark that tracks
+                progress on the document itself. */}
+            <FieldRule variant="mark" filled={1} total={1} className="mb-2.5 w-24" />
+            <h1 className="type-display text-base text-heading lg:text-lg">
               Legal Document Creator
             </h1>
-            <p className="mt-1 hidden text-xs text-white/60 lg:block">
+            <p className="mt-0.5 hidden text-xs text-ink-muted lg:block">
               {view === "creator"
-                ? "Chat with the AI assistant to fill in your document."
-                : "Choose a document type, then chat with the AI assistant to fill it in."}
+                ? "Answer a question at a time. The document fills itself in."
+                : "Pick a template, then talk your way through it."}
             </p>
           </div>
           <div className="order-last col-span-2 justify-self-center lg:order-none lg:col-span-1">
@@ -179,16 +186,19 @@ export default function Home() {
             )}
             {/* Held back to `xl`: at `lg` the third column has just appeared and
                 the email's width pushes both action links onto two lines. */}
-            <span className="hidden font-mono text-xs text-white/50 xl:inline">{currentUser?.email}</span>
+            <span className="hidden font-mono text-[11px] text-ink-muted xl:inline">
+              {currentUser?.email}
+            </span>
             <button type="button" onClick={handleLogout} className={linkButtonClassName}>
               Log out
             </button>
             <ThemeToggle />
           </div>
         </div>
+
       </header>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-8">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
         {view === "dashboard" && (
           <Dashboard
             onResume={handleResume}
@@ -200,11 +210,8 @@ export default function Home() {
 
         {view === "creator" && savedDocumentId !== null && documentTypeId !== null && (
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-            <section aria-labelledby="document-chat-heading" className="flex flex-col gap-4">
-              <h2
-                id="document-chat-heading"
-                className="font-mono text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-500"
-              >
+            <section aria-labelledby="document-chat-heading" className="flex flex-col gap-3">
+              <h2 id="document-chat-heading" className="ui-eyebrow">
                 {documentTypeName} Details
               </h2>
               <DocumentChat
@@ -218,24 +225,19 @@ export default function Home() {
 
             <section
               aria-labelledby="document-preview-heading"
-              className="flex flex-col gap-4 lg:sticky lg:top-8 lg:self-start"
+              className="flex flex-col gap-3 lg:sticky lg:top-8 lg:self-start"
             >
-              <h2
-                id="document-preview-heading"
-                className="font-mono text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-500"
-              >
+              <h2 id="document-preview-heading" className="ui-eyebrow">
                 Document Preview
               </h2>
               {documentDetail ? (
                 <DocumentPreview documentDetail={documentDetail} values={fields} />
               ) : (
-                <div className="rounded-sm border border-line bg-paper p-6 shadow-sm">
+                <div className="ui-panel p-6">
                   {isLoadingDocument ? (
-                    <p className="font-mono text-xs uppercase tracking-widest text-ink-muted">
-                      Loading document…
-                    </p>
+                    <p className="ui-eyebrow">Loading document…</p>
                   ) : documentError ? (
-                    <p className="text-sm text-red-600 dark:text-red-400">{documentError}</p>
+                    <p className="text-sm font-medium text-flag-ink">{documentError}</p>
                   ) : null}
                 </div>
               )}

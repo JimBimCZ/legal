@@ -188,3 +188,32 @@ def test_send_message_does_not_persist_a_failed_turn(authed_client, monkeypatch)
 def test_saved_documents_require_authentication(client):
     assert client.get("/api/saved-documents").status_code == 401
     assert client.post("/api/saved-documents", json={"documentTypeId": "CSA.md"}).status_code == 401
+
+
+def test_stand_in_field_values_stored_earlier_open_as_unfilled(authed_client):
+    """Documents saved before stand-in values were normalized away must not
+    still present as complete (and therefore downloadable) when reopened."""
+    import sqlite3
+
+    from app.db import get_db_path
+
+    created = authed_client.post(
+        "/api/saved-documents", json={"documentTypeId": "Mutual-NDA.md"}
+    ).json()
+
+    db = sqlite3.connect(get_db_path())
+    try:
+        db.execute(
+            "UPDATE saved_documents SET fields_json = ? WHERE id = ?",
+            (
+                '{"party1Name": "(currently: not yet known)", "party2Name": "Acme Inc."}',
+                created["id"],
+            ),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    detail = authed_client.get(f"/api/saved-documents/{created['id']}").json()
+    assert detail["fields"]["party1Name"] == ""
+    assert detail["fields"]["party2Name"] == "Acme Inc."
