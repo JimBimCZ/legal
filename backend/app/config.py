@@ -46,3 +46,20 @@ def get_cookie_secure() -> bool:
     since the app currently runs over plain HTTP; flip via env var once
     served behind TLS."""
     return os.environ.get("COOKIE_SECURE", "false").lower() == "true"
+
+
+def get_github_client_id() -> str | None:
+    """The OAuth App's client id. Production-only: setting this locally sends
+    local sign-in through GitHub, which then redirects to the production
+    callback registered on the app, so the round-trip never completes."""
+    return os.environ.get("GITHUB_CLIENT_ID") or None
+
+
+def get_github_client_secret() -> str | None:
+    return os.environ.get("GITHUB_CLIENT_SECRET") or None
+
+
+def github_oauth_configured() -> bool:
+    """Both halves present. `or None` above means an empty string - which is
+    how an unset Vercel variable arrives - counts as absent."""
+    return bool(get_github_client_id() and get_github_client_secret())
