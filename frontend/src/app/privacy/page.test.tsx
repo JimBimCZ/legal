@@ -17,13 +17,13 @@ describe("privacy policy", () => {
   it("discloses that document content is sent to OpenRouter", () => {
     render(<PrivacyPage />);
 
-    expect(screen.getAllByText(/OpenRouter/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/are sent to\s+OpenRouter/)).toBeInTheDocument();
   });
 
   it("names every processor", () => {
     render(<PrivacyPage />);
 
-    for (const processor of ["OpenRouter", "Neon", "Vercel", "GitHub"]) {
+    for (const processor of ["OpenRouter", "Cerebras", "Neon", "Vercel", "GitHub"]) {
       expect(screen.getAllByText(new RegExp(processor)).length).toBeGreaterThan(0);
     }
   });

@@ -58,11 +58,14 @@ export default function PrivacyPage() {
 
       <Section heading="Who else sees it">
         <p>
-          <strong>OpenRouter.</strong> To draft your document, the messages you write and the
-          document details they contain are sent to OpenRouter, which runs the AI model that
-          replies. This means your contract details leave this app and are processed on servers in
-          the United States. If that is not acceptable for a particular agreement, do not enter it
-          here.
+          <strong>OpenRouter, and the AI provider it routes to.</strong> To draft your
+          document, the messages you write and the document details they contain are sent to
+          OpenRouter. OpenRouter does not run the AI model itself — it forwards the request to
+          whichever provider is serving that model, normally Cerebras, and may route to a
+          different provider if that one is unavailable. This means your contract details
+          leave this app and are processed outside the EU, on infrastructure OpenRouter
+          selects at the time of the request. If that is not acceptable for a particular
+          agreement, do not enter it here.
         </p>
         <p>
           <strong>GitHub.</strong> Handles sign-in. GitHub learns that you use this app.
