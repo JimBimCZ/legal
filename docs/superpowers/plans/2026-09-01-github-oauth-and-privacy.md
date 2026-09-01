@@ -22,7 +22,7 @@
 - State lifetime is 600 seconds.
 - Repository modules take `db: Database` as their first parameter and raise module-level exception classes, matching `saved_documents.py`.
 - Controller named in the privacy policy: Vít Bušek, `busek.vit@gmail.com`.
-- Every task ends with `cd backend && uv run pytest` (backend tasks) or `cd frontend && npm test` (frontend tasks) fully green before commit.
+- **Verification gate, amended by pre-flight ruling.** Task 1 removes `hashed_password`, which the still-present signup/signin routes and three test files depend on — so the full suite cannot be green again until Task 5 replaces those routes. Therefore: **Tasks 1-4** must pass their own new test file(s) and introduce no failures beyond the known password-auth set (`tests/test_auth.py`, `tests/test_saved_documents.py`, and `conftest.py`'s `authed_client`). **Task 5 onward** must end with `cd backend && uv run pytest` fully green. Frontend tasks end with `cd frontend && npm test` fully green.
 
 ---
 
@@ -599,8 +599,7 @@ COOKIE_SECURE alongside missing credentials is a hard startup failure."
 
 **Files:**
 - Create: `backend/app/github_oauth.py`, `backend/tests/test_github_oauth.py`
-- Modify: `backend/pyproject.toml` (move `httpx` to runtime dependencies, drop `bcrypt`)
-- Delete: `backend/app/security.py`
+- Modify: `backend/pyproject.toml` (move `httpx` to runtime dependencies)
 
 **Interfaces:**
 - Consumes: `get_github_client_id`, `get_github_client_secret`, `get_session_secret` from `config.py`.
@@ -784,9 +783,11 @@ def test_fetch_identity_raises_when_the_user_call_fails(monkeypatch):
 Run: `cd backend && uv run pytest tests/test_github_oauth.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'app.github_oauth'`.
 
-- [ ] **Step 3: Move `httpx` to a runtime dependency and drop `bcrypt`**
+- [ ] **Step 3: Move `httpx` to a runtime dependency**
 
-In `backend/pyproject.toml`, remove `"bcrypt>=5.0.0",` from `dependencies`, add `"httpx>=0.28.1",` to `dependencies`, and remove `"httpx>=0.28.1",` from the dev group. Then run `cd backend && uv sync`.
+In `backend/pyproject.toml`, add `"httpx>=0.28.1",` to `dependencies` and remove `"httpx>=0.28.1",` from the dev group. Then run `cd backend && uv sync`.
+
+Leave `bcrypt` alone for now. `routes/auth.py:7` still imports `security.py`, which imports bcrypt; both are removed in Task 5, where that import disappears.
 
 - [ ] **Step 4: Write the implementation**
 
@@ -919,18 +920,12 @@ def fetch_identity(access_token: str) -> tuple[int, str, str]:
     raise NoVerifiedEmailError("no verified primary email on the GitHub account")
 ```
 
-- [ ] **Step 5: Delete the password module**
-
-```bash
-git rm backend/app/security.py
-```
-
-- [ ] **Step 6: Run tests to verify they pass**
+- [ ] **Step 5: Run tests to verify they pass**
 
 Run: `cd backend && uv run pytest tests/test_github_oauth.py -v`
 Expected: PASS, all thirteen tests.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add backend/app/github_oauth.py backend/tests/test_github_oauth.py backend/pyproject.toml backend/uv.lock
@@ -940,7 +935,7 @@ State must satisfy both a signature check and cookie equality: the
 signature alone lets an attacker replay their own state, and cookie
 equality alone lets anyone who can set a cookie choose both halves.
 
-Drops bcrypt and promotes httpx to a runtime dependency."
+Promotes httpx to a runtime dependency."
 ```
 
 ---
@@ -949,7 +944,8 @@ Drops bcrypt and promotes httpx to a runtime dependency."
 
 **Files:**
 - Modify: `backend/app/routes/auth.py` (rewrite), `backend/app/schemas.py:6-21`, `backend/app/deps.py:14-16`
-- Modify: `backend/tests/conftest.py:44-49`, `backend/tests/test_saved_documents.py:57-68`
+- Modify: `backend/tests/conftest.py:44-49`, `backend/tests/test_saved_documents.py:57-68`, `backend/pyproject.toml` (drop `bcrypt`)
+- Delete: `backend/app/security.py`
 - Rewrite: `backend/tests/test_auth.py`
 
 **Interfaces:**
@@ -1377,6 +1373,16 @@ def logout(response: Response) -> None:
 def me(user: UserResponse = Depends(get_current_user)) -> UserResponse:
     return user
 ```
+
+- [ ] **Step 5b: Delete the password module and drop bcrypt**
+
+The rewritten `routes/auth.py` above was the last consumer, so both can go now:
+
+```bash
+git rm backend/app/security.py
+```
+
+Then remove `"bcrypt>=5.0.0",` from `dependencies` in `backend/pyproject.toml` and run `cd backend && uv sync`.
 
 - [ ] **Step 6: Run the full backend suite**
 
