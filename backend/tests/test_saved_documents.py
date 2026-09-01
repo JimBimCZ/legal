@@ -53,14 +53,16 @@ def test_create_saved_document_rejects_unknown_document_type(authed_client):
     assert response.status_code == 400
 
 
-def _as_other_user(client, email):
-    """Temporarily swap the client's session cookie to a freshly-signed-up
-    second user, run the given actions, then restore the original session.
-    A second TestClient(app) can't be used for this: entering it re-triggers
-    the app's lifespan and wipes the shared test database."""
+def _as_other_user(client, github_id, email):
+    """Temporarily swap the client's session for a second user, run the given
+    actions, then restore the original. A second TestClient(app) can't be used
+    for this: entering it re-triggers the app's lifespan and wipes the shared
+    test database."""
+    from tests.conftest import sign_in_as
+
     saved_cookies = dict(client.cookies)
     client.cookies.clear()
-    client.post("/api/auth/signup", json={"email": email, "password": "password123"})
+    sign_in_as(client, github_id=github_id, login=f"user{github_id}", email=email)
     try:
         yield client
     finally:
@@ -72,7 +74,7 @@ def _as_other_user(client, email):
 def test_list_saved_documents_returns_only_the_current_users_documents(authed_client):
     authed_client.post("/api/saved-documents", json={"documentTypeId": "Mutual-NDA.md"})
 
-    for other in _as_other_user(authed_client, "otheruser@example.com"):
+    for other in _as_other_user(authed_client, 2, "otheruser@example.com"):
         other.post("/api/saved-documents", json={"documentTypeId": "CSA.md"})
 
     response = authed_client.get("/api/saved-documents")
@@ -84,7 +86,7 @@ def test_list_saved_documents_returns_only_the_current_users_documents(authed_cl
 
 def test_get_saved_document_not_owned_by_caller_returns_404(authed_client):
     created = None
-    for other in _as_other_user(authed_client, "otheruser2@example.com"):
+    for other in _as_other_user(authed_client, 3, "otheruser2@example.com"):
         created = other.post("/api/saved-documents", json={"documentTypeId": "CSA.md"}).json()
 
     response = authed_client.get(f"/api/saved-documents/{created['id']}")
@@ -156,7 +158,7 @@ def test_send_message_carries_forward_persisted_history_to_the_next_turn(authed_
 
 def test_send_message_to_unowned_document_returns_404(authed_client, mock_completion):
     created = None
-    for other in _as_other_user(authed_client, "otheruser3@example.com"):
+    for other in _as_other_user(authed_client, 4, "otheruser3@example.com"):
         created = other.post("/api/saved-documents", json={"documentTypeId": "CSA.md"}).json()
 
     response = authed_client.post(

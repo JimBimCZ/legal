@@ -13,7 +13,7 @@ def get_current_user(
     if user_id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     row = db.execute(
-        "SELECT id, email, created_at FROM users WHERE id = ?", (user_id,)
+        "SELECT id, email, github_login, created_at FROM users WHERE id = ?", (user_id,)
     ).fetchone()
     if row is None:
         # Cookie is validly signed but the user no longer exists, e.g. after

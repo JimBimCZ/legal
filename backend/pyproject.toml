@@ -3,9 +3,9 @@ name = "legal-backend"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "bcrypt>=5.0.0",
     "email-validator>=2.3.0",
     "fastapi>=0.141.1",
+    "httpx>=0.28.1",
     "itsdangerous>=2.2.0",
     "litellm>=1.96.0",
     "psycopg[binary]>=3.2.0",
@@ -15,7 +15,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "pytest>=9.1.1",
 ]
 

@@ -7,8 +7,9 @@ download the finished agreement as a PDF.
 
 ## What it does
 
-- **Accounts** — email/password sign-up and sign-in, backed by a signed
-  HTTP-only session cookie
+- **Accounts** — sign in with GitHub, backed by a signed HTTP-only session
+  cookie. You can delete your account and everything in it from the
+  documents page.
 - **11 document types** — NDA, Cloud Service Agreement, DPA, BAA, SLA, and more
   (see [`catalog.json`](catalog.json))
 - **Chat-driven drafting** — the assistant asks for the fields a given template
@@ -61,6 +62,10 @@ everything and start clean, stop the container and run:
 docker volume rm legal-app-data
 ```
 
+Accounts, documents, and chat history are removed immediately when you delete
+your account. What the deployed app collects and who receives it is described
+at /privacy.
+
 ## Configuration
 
 All are optional except `OPENROUTER_API_KEY`, and all are read from the
@@ -70,10 +75,29 @@ environment (the repo-root `.env` is loaded automatically for local runs).
 | --- | --- | --- |
 | `OPENROUTER_API_KEY` | — | OpenRouter credential for the chat assistant |
 | `SESSION_SECRET` | a fixed dev value | Key used to sign session cookies — **set this for any real deployment** |
-| `COOKIE_SECURE` | `false` | Set `true` to require HTTPS for the session cookie |
+| `COOKIE_SECURE` | `false` | Set to `1`, `true`, `yes`, or `on` (case-insensitive) to require HTTPS for the session cookie |
 | `DATABASE_PATH` | `backend/data/app.db` | SQLite file location |
 | `STATIC_DIR` | `backend/static` | Built frontend to serve; skipped if absent |
 | `REPO_ROOT` | backend's parent | Where `catalog.json` and `templates/` are found |
+| `GITHUB_CLIENT_ID` | unset | OAuth App client id. **Production only** — see below |
+| `GITHUB_CLIENT_SECRET` | unset | OAuth App client secret. **Production only** — see below |
+
+### GitHub sign-in
+
+Production authenticates through a GitHub OAuth App whose callback URL is
+`https://<your-deployment>/api/auth/github/callback`.
+
+**Do not set `GITHUB_CLIENT_ID` or `GITHUB_CLIENT_SECRET` locally.** With them
+unset, sign-in skips GitHub entirely and issues a session for a local
+development user, so the quick-start above works with no credentials. Setting
+them locally sends sign-in to GitHub, which then redirects to the *production*
+callback registered on the OAuth App, and the round-trip never completes.
+
+The app refuses to start if the credentials are missing while `DATABASE_URL` or
+`COOKIE_SECURE` is set, so the bypass cannot reach a real deployment. The same
+gate refuses to start if `SESSION_SECRET` is still its default dev value while
+`DATABASE_URL` or `COOKIE_SECURE` is set, since a known session secret lets
+anyone forge a session for any user.
 
 ## Architecture
 
@@ -109,7 +133,7 @@ request leaves nothing behind and can be safely retried.
 cd backend
 uv sync
 uv run uvicorn app.main:app --reload    # http://localhost:8000
-uv run pytest                           # 65 tests
+uv run pytest                           # 143 tests
 ```
 
 The database schema is created on first start if absent and reused afterwards.
@@ -119,7 +143,7 @@ The database schema is created on first start if absent and reused afterwards.
 ```bash
 cd frontend
 npm install
-npm run test        # 71 tests (vitest)
+npm run test        # 92 tests (vitest)
 npm run lint
 npm run build       # static export to frontend/out
 ```
@@ -138,10 +162,11 @@ cookie.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/api/auth/signup` | Create an account and start a session |
-| `POST` | `/api/auth/signin` | Sign in and start a session |
+| `GET` | `/api/auth/github` | Begin GitHub sign-in (or issue a local session when unconfigured) |
+| `GET` | `/api/auth/github/callback` | Complete sign-in and set the session cookie |
 | `POST` | `/api/auth/logout` | Clear the session cookie |
 | `GET` | `/api/auth/me` | Current user, or 401 |
+| `DELETE` | `/api/auth/me` | Delete the account, its documents, and its chat history |
 | `GET` | `/api/documents` | List the 11 available document types |
 | `GET` | `/api/documents/{id}` | Parsed fields and content blocks for one type |
 | `GET` | `/api/saved-documents` | The current user's saved documents |

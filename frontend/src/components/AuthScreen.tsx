@@ -1,40 +1,45 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 
 import { FieldRule } from "@/components/FieldRule";
-import { signIn, signUp } from "@/lib/authApi";
-import type { User } from "@/types/auth";
 
-interface AuthScreenProps {
-  onAuthenticated: (user: User) => void;
-}
+// Keyed by the auth_error codes routes/auth.py redirects with.
+const ERROR_MESSAGES: Record<string, string> = {
+  denied: "Sign-in was cancelled. You can try again whenever you're ready.",
+  state: "That sign-in attempt expired. Please try again.",
+  email: "Your GitHub account has no verified email address. Verify one on GitHub, then try again.",
+  github: "We couldn't reach GitHub just now. Please try again in a moment.",
+};
 
-export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+const FALLBACK_MESSAGE = "We could not sign you in. Please try again.";
+
+export function AuthScreen() {
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      const user = mode === "signin" ? await signIn(email, password) : await signUp(email, password);
-      onAuthenticated(user);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+  // Read from location rather than useSearchParams: this renders inside a
+  // client-side root page, and useSearchParams would force a Suspense
+  // boundary around it for no benefit. Clearing the parameter stops a
+  // reload from replaying a stale error.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("auth_error");
+    if (!code) return;
+    // The page is prerendered by output: "export", so window.location is
+    // unavailable at build time. A useState lazy initializer would render
+    // nothing at build and the error at hydration, which is a hydration
+    // mismatch - worse than the cascading render this rule guards against.
+    // The value is read once at mount and never changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setError(Object.hasOwn(ERROR_MESSAGES, code) ? ERROR_MESSAGES[code] : FALLBACK_MESSAGE);
 
-  function toggleMode() {
-    setMode((current) => (current === "signin" ? "signup" : "signin"));
-    setError(null);
-  }
+    // Drop auth_error but keep every other query parameter - a plain
+    // replaceState(pathname) would silently discard the rest of the query
+    // string, not just the one param this screen consumes.
+    const remaining = new URLSearchParams(window.location.search);
+    remaining.delete("auth_error");
+    const query = remaining.toString();
+    window.history.replaceState({}, "", window.location.pathname + (query ? `?${query}` : ""));
+  }, []);
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-12">
@@ -44,42 +49,10 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
         <div className="border-b border-line px-8 pt-8 pb-6">
           <FieldRule variant="mark" filled={1} total={1} className="w-24" />
           <h1 className="type-display mt-4 text-xl text-heading">Legal Document Creator</h1>
-          <p className="ui-eyebrow mt-2">
-            {mode === "signin" ? "Welcome back" : "Let's get you set up"}
-          </p>
+          <p className="ui-eyebrow mt-2">Sign in to start drafting</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-8 pt-6">
-          <div>
-            <label htmlFor="auth-email" className="mb-1.5 block text-sm font-medium text-ink">
-              Email
-            </label>
-            <input
-              id="auth-email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="ui-input"
-            />
-          </div>
-          <div>
-            <label htmlFor="auth-password" className="mb-1.5 block text-sm font-medium text-ink">
-              Password
-            </label>
-            <input
-              id="auth-password"
-              type="password"
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              required
-              minLength={8}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="ui-input"
-            />
-          </div>
-
+        <div className="flex flex-col gap-4 px-8 pt-6 pb-8">
           {/* A heavy accent rule down the side rather than a tinted box: the
               only place colour appears on this screen, and it still reads as
               an error with the colour stripped out. */}
@@ -89,19 +62,18 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
             </p>
           )}
 
-          <button type="submit" disabled={isSubmitting} className="ui-btn ui-btn-primary mt-2 w-full">
-            {isSubmitting ? "Please wait…" : mode === "signin" ? "Sign in" : "Sign up"}
-          </button>
-        </form>
+          {/* An anchor, not a button: OAuth needs a top-level navigation, so
+              this cannot go through fetch. */}
+          <a href="/api/auth/github" className="ui-btn ui-btn-primary w-full text-center">
+            Continue with GitHub
+          </a>
 
-        <div className="px-8 pt-5 pb-8">
-          <button
-            type="button"
-            onClick={toggleMode}
-            className="ui-link w-full text-center text-sm font-medium underline decoration-line underline-offset-4 hover:decoration-current"
-          >
-            {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
-          </button>
+          <p className="text-xs text-ink-muted">
+            We store your GitHub username and email address, and the documents you draft.{" "}
+            <a href="/privacy" className="ui-link underline decoration-line underline-offset-4">
+              Privacy policy
+            </a>
+          </p>
         </div>
       </div>
     </div>
