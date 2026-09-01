@@ -162,6 +162,60 @@ def test_callback_reports_a_database_failure(client, fake_github, monkeypatch):
     assert response.headers["location"] == "/?auth_error=github"
 
 
+def _failing_get_connection():
+    """A stand-in for app.db.get_connection that fails the way
+    ensure_schema() can - e.g. Neon's free tier waking from idle - before any
+    row is ever fetched. Must remain a generator function (the `yield` after
+    `raise` is unreachable but keeps the shape get_connection() has) so that
+    calling it returns a generator whose first `next()` raises, matching how
+    FastAPI's Depends() and this module's own _db_connection() drive it."""
+    raise RuntimeError("ensure_schema exploded")
+    yield  # pragma: no cover
+
+
+def test_start_does_not_touch_the_database_when_oauth_is_configured(client, monkeypatch):
+    """github_start only builds a URL and redirects on the configured path -
+    only the dev bypass branch touches the database. Proven by making the
+    database dependency itself blow up and confirming this path is unaffected."""
+    monkeypatch.setattr("app.routes.auth.get_connection", _failing_get_connection)
+
+    response = client.get("/api/auth/github", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"].startswith("https://github.com/login/oauth/authorize?")
+
+
+def test_start_redirects_instead_of_500ing_when_the_database_is_unreachable(client, monkeypatch):
+    """The dev-bypass branch does touch the database (it upserts the local
+    user), so a failure there must still redirect rather than 500."""
+    monkeypatch.delenv("GITHUB_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GITHUB_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr("app.routes.auth.get_connection", _failing_get_connection)
+
+    response = client.get("/api/auth/github", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/?auth_error=github"
+
+
+def test_callback_redirects_when_the_database_dependency_itself_fails(client, fake_github, monkeypatch):
+    """Distinct from test_callback_reports_a_database_failure below: that one
+    fails inside upsert_github_user, which already ran inside the route's own
+    try/except even before this fix. This one fails inside get_connection()
+    itself (ensure_schema touching the database) - which FastAPI used to
+    resolve via Depends() *before* the route body's try/except ever ran,
+    producing a raw 500. Regression test for making the connection lazy."""
+    state = _start_and_get_state(client)
+    monkeypatch.setattr("app.routes.auth.get_connection", _failing_get_connection)
+
+    response = client.get(
+        f"/api/auth/github/callback?code=the-code&state={state}", follow_redirects=False
+    )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/?auth_error=github"
+
+
 def test_successful_sign_in_clears_the_state_cookie(client, fake_github):
     """Load-bearing: without this, a replayed code+state pair after a
     successful sign-in would still carry a live oauth_state cookie and

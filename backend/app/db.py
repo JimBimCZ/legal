@@ -151,7 +151,8 @@ def has_legacy_password_column(conn: Any, postgres: bool) -> bool:
     if postgres:
         row = conn.execute(
             "SELECT 1 FROM information_schema.columns "
-            "WHERE table_name = 'users' AND column_name = 'hashed_password'"
+            "WHERE table_name = 'users' AND column_name = 'hashed_password' "
+            "AND table_schema = current_schema()"
         ).fetchone()
         return row is not None
     return any(row[1] == "hashed_password" for row in conn.execute("PRAGMA table_info(users)"))
@@ -168,6 +169,12 @@ def _drop_legacy_tables(conn: Any, postgres: bool) -> None:
         conn.execute(f"DROP TABLE IF EXISTS {table}{suffix}")
 
 
+# Arbitrary but fixed: pg_advisory_xact_lock just needs one bigint key that
+# no other lock in this app takes, so two containers migrating at once
+# serialize against each other rather than against anything else.
+_MIGRATION_LOCK_KEY = 5_820_231_994
+
+
 def init_db() -> None:
     """Ensure the schema exists, leaving any already-stored data in place.
 
@@ -178,6 +185,13 @@ def init_db() -> None:
         import psycopg
 
         with psycopg.connect(get_database_url()) as conn:
+            # Vercel can cold-start two containers at once, and both would
+            # otherwise read "legacy present" before either commits - the
+            # second could then drop the tables the first just recreated.
+            # pg_advisory_xact_lock serializes the check-and-migrate below
+            # across containers; it's released automatically when this
+            # transaction commits (or rolls back).
+            conn.execute("SELECT pg_advisory_xact_lock(%s)", (_MIGRATION_LOCK_KEY,))
             if has_legacy_password_column(conn, postgres=True):
                 _drop_legacy_tables(conn, postgres=True)
             conn.execute(POSTGRES_SCHEMA_SQL)

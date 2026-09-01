@@ -60,9 +60,30 @@ describe("AuthScreen", () => {
     expect(window.location.search).toBe("");
   });
 
+  it("preserves other query parameters while clearing auth_error", () => {
+    setSearch("?foo=bar&auth_error=denied&baz=qux");
+    render(<AuthScreen />);
+
+    expect(window.location.search).toBe("?foo=bar&baz=qux");
+  });
+
   it("shows no error when there is none", () => {
     render(<AuthScreen />);
 
     expect(screen.queryByText(/could not sign you in/i)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the generic message for __proto__ instead of walking the prototype chain", () => {
+    setSearch("?auth_error=__proto__");
+    render(<AuthScreen />);
+
+    expect(screen.getByText(/could not sign you in/i)).toBeInTheDocument();
+  });
+
+  it("falls back to the generic message for a function-valued inherited key", () => {
+    setSearch("?auth_error=constructor");
+    render(<AuthScreen />);
+
+    expect(screen.getByText(/could not sign you in/i)).toBeInTheDocument();
   });
 });

@@ -7,8 +7,10 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import (
     BACKEND_ROOT,
+    DEFAULT_SESSION_SECRET,
     get_cookie_secure,
     get_database_url,
+    get_session_secret,
     get_static_dir,
     github_oauth_configured,
 )
@@ -25,15 +27,33 @@ def assert_safe_auth_config() -> None:
     With no GitHub credentials, /api/auth/github issues a session to anyone who
     requests it - which is fine on a laptop and catastrophic in public. Vercel
     sets both DATABASE_URL and COOKIE_SECURE, so either one alongside missing
-    credentials means the bypass is about to be exposed."""
-    if github_oauth_configured():
-        return
-    if get_database_url() or get_cookie_secure():
+    credentials means the bypass is about to be exposed.
+
+    Same reasoning applies to the session secret: this repository is public,
+    so DEFAULT_SESSION_SECRET is a published value. Session tokens are just an
+    itsdangerous signature over a bare user id, so leaving the default in
+    place on a real deployment lets anyone forge a session for any user - and
+    this branch puts DELETE /api/auth/me behind that signature."""
+    # Checked independently, not one "return early" followed by the next: a
+    # deployment can have valid OAuth credentials and still be booting with
+    # the published default session secret, which is exactly the case the
+    # second check exists to catch.
+    looks_like_a_real_deployment = bool(get_database_url() or get_cookie_secure())
+
+    if not github_oauth_configured() and looks_like_a_real_deployment:
         raise RuntimeError(
             "GitHub OAuth is not configured, but DATABASE_URL or COOKIE_SECURE is "
             "set, which means this is a real deployment. Refusing to start with "
             "the local development sign-in bypass enabled. Set GITHUB_CLIENT_ID "
             "and GITHUB_CLIENT_SECRET."
+        )
+
+    if get_session_secret() == DEFAULT_SESSION_SECRET and looks_like_a_real_deployment:
+        raise RuntimeError(
+            "SESSION_SECRET is still the published default, but DATABASE_URL or "
+            "COOKIE_SECURE is set, which means this is a real deployment. "
+            "Refusing to start with a forgeable session secret - anyone could sign "
+            "a session token for any user. Set SESSION_SECRET to a random value."
         )
 
 

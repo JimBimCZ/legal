@@ -96,8 +96,8 @@ export default function PrivacyPage() {
 
       <Section heading="Your rights">
         <p>
-          You can ask for a copy of your data, have it corrected, have it erased, or object to how it
-          is handled. Erasure is self-serve: the <strong>Delete account</strong> control on your
+          You can ask for a copy of your data, ask for it in a portable form you can take elsewhere,
+          have it corrected, have it erased, or object to how it is handled. Erasure is self-serve: the <strong>Delete account</strong> control on your
           documents page removes your account, every document, and every message, at once and
           permanently. For anything else, write to the address above.
         </p>

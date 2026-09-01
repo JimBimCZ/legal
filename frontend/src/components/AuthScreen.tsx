@@ -30,8 +30,15 @@ export function AuthScreen() {
     // mismatch - worse than the cascading render this rule guards against.
     // The value is read once at mount and never changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setError(ERROR_MESSAGES[code] ?? FALLBACK_MESSAGE);
-    window.history.replaceState({}, "", window.location.pathname);
+    setError(Object.hasOwn(ERROR_MESSAGES, code) ? ERROR_MESSAGES[code] : FALLBACK_MESSAGE);
+
+    // Drop auth_error but keep every other query parameter - a plain
+    // replaceState(pathname) would silently discard the rest of the query
+    // string, not just the one param this screen consumes.
+    const remaining = new URLSearchParams(window.location.search);
+    remaining.delete("auth_error");
+    const query = remaining.toString();
+    window.history.replaceState({}, "", window.location.pathname + (query ? `?${query}` : ""));
   }, []);
 
   return (

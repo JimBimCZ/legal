@@ -1,3 +1,7 @@
+import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 from fastapi import APIRouter, Cookie, Depends, Response, status
 from fastapi.responses import RedirectResponse
 
@@ -19,7 +23,30 @@ from ..schemas import UserResponse
 from ..session import SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS, create_session_token
 from ..users import LOCAL_DEV_GITHUB_ID, delete_user, upsert_github_user
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+@contextmanager
+def _db_connection() -> Iterator[Database]:
+    """The same generator get_connection() runs as a FastAPI dependency,
+    called directly instead of via Depends.
+
+    FastAPI resolves a Depends() argument *before* the route body runs, and
+    get_connection() calls ensure_schema(), which touches the database. Used
+    as a dependency, a database failure there (e.g. Neon's free tier waking
+    from idle, per db.py's ensure_schema docstring) happens outside the
+    route's own try/except and surfaces as a raw 500 - unacceptable here,
+    since both routes below are top-level browser navigations that must
+    redirect on every failure. Calling the same generator by hand puts that
+    failure inside the route body, where it can be caught."""
+    gen = get_connection()
+    db = next(gen)
+    try:
+        yield db
+    finally:
+        gen.close()
 
 
 def _set_session_cookie(response: Response, user_id: int) -> None:
@@ -52,12 +79,19 @@ def _auth_error_redirect(code: str) -> RedirectResponse:
 
 
 @router.get("/github")
-def github_start(db: Database = Depends(get_connection)) -> RedirectResponse:
+def github_start() -> RedirectResponse:
     if not github_oauth_configured():
         # Local development: no credentials, so no round-trip to make. Boot
         # refuses this path on anything resembling a deployment - see
-        # main.assert_safe_auth_config.
-        user_id = upsert_github_user(db, LOCAL_DEV_GITHUB_ID, "local", "local@localhost")
+        # main.assert_safe_auth_config. The database is only touched on this
+        # branch - the configured path below just builds a URL and redirects
+        # - so the connection is opened here, not as a route-wide dependency.
+        try:
+            with _db_connection() as db:
+                user_id = upsert_github_user(db, LOCAL_DEV_GITHUB_ID, "local", "local@localhost")
+        except Exception:
+            logger.exception("dev sign-in bypass could not reach the database")
+            return _auth_error_redirect("github")
         return _signed_in_redirect(user_id)
 
     state = create_state()
@@ -81,7 +115,6 @@ def github_callback(
     state: str | None = None,
     error: str | None = None,
     oauth_state: str | None = Cookie(default=None, alias=OAUTH_STATE_COOKIE_NAME),
-    db: Database = Depends(get_connection),
 ) -> RedirectResponse:
     if error or not code:
         return _auth_error_redirect("denied")
@@ -96,19 +129,29 @@ def github_callback(
     if not state_valid:
         return _auth_error_redirect("state")
 
+    # The database connection is opened inside this try, not via Depends, so
+    # ensure_schema() failing (e.g. Neon waking from idle) lands in the
+    # generic except below and redirects, instead of failing dependency
+    # resolution before the route body - and this try/except - ever run.
     try:
         github_id, login, email = fetch_identity(exchange_code_for_token(code))
-        user_id = upsert_github_user(db, github_id, login, email)
+        with _db_connection() as db:
+            user_id = upsert_github_user(db, github_id, login, email)
     except NoVerifiedEmailError:
+        logger.exception("github sign-in: account has no verified email")
         return _auth_error_redirect("email")
     except (GitHubOAuthError, OSError):
         # OSError covers httpx's transport failures - DNS, connection, timeout.
+        logger.exception("github sign-in: failed exchanging code or reaching GitHub (auth_error=github)")
         return _auth_error_redirect("github")
     except Exception:
         # Backstop, not a replacement for the specific clauses above: a
         # concurrent-insert race on users.github_id, a dropped Postgres
         # connection mid-callback, or anything else unanticipated. This is a
         # top-level browser navigation and must never render a raw 500.
+        # Never logs the authorization code, access token, or client secret -
+        # only the exception class/message and the auth_error code returned.
+        logger.exception("github sign-in: unexpected failure in callback (auth_error=github)")
         return _auth_error_redirect("github")
 
     return _signed_in_redirect(user_id)

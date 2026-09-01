@@ -75,7 +75,7 @@ environment (the repo-root `.env` is loaded automatically for local runs).
 | --- | --- | --- |
 | `OPENROUTER_API_KEY` | — | OpenRouter credential for the chat assistant |
 | `SESSION_SECRET` | a fixed dev value | Key used to sign session cookies — **set this for any real deployment** |
-| `COOKIE_SECURE` | `false` | Set `true` to require HTTPS for the session cookie |
+| `COOKIE_SECURE` | `false` | Set to `1`, `true`, `yes`, or `on` (case-insensitive) to require HTTPS for the session cookie |
 | `DATABASE_PATH` | `backend/data/app.db` | SQLite file location |
 | `STATIC_DIR` | `backend/static` | Built frontend to serve; skipped if absent |
 | `REPO_ROOT` | backend's parent | Where `catalog.json` and `templates/` are found |
@@ -94,7 +94,10 @@ them locally sends sign-in to GitHub, which then redirects to the *production*
 callback registered on the OAuth App, and the round-trip never completes.
 
 The app refuses to start if the credentials are missing while `DATABASE_URL` or
-`COOKIE_SECURE` is set, so the bypass cannot reach a real deployment.
+`COOKIE_SECURE` is set, so the bypass cannot reach a real deployment. The same
+gate refuses to start if `SESSION_SECRET` is still its default dev value while
+`DATABASE_URL` or `COOKIE_SECURE` is set, since a known session secret lets
+anyone forge a session for any user.
 
 ## Architecture
 
@@ -130,7 +133,7 @@ request leaves nothing behind and can be safely retried.
 cd backend
 uv sync
 uv run uvicorn app.main:app --reload    # http://localhost:8000
-uv run pytest                           # 122 tests
+uv run pytest                           # 143 tests
 ```
 
 The database schema is created on first start if absent and reused afterwards.
@@ -140,7 +143,7 @@ The database schema is created on first start if absent and reused afterwards.
 ```bash
 cd frontend
 npm install
-npm run test        # 89 tests (vitest)
+npm run test        # 92 tests (vitest)
 npm run lint
 npm run build       # static export to frontend/out
 ```

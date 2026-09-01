@@ -33,19 +33,28 @@ def get_templates_dir() -> Path:
     return get_repo_root() / "templates"
 
 
+DEFAULT_SESSION_SECRET = "dev-insecure-session-secret-change-me"
+
+
 def get_session_secret() -> str:
     """Read live (not cached) so tests can point this at an isolated value.
     Falls back to a fixed dev-only value so local/test runs work without
     extra setup; production deployments should set SESSION_SECRET via .env,
-    the same delivery mechanism already used for OPENROUTER_API_KEY."""
-    return os.environ.get("SESSION_SECRET", "dev-insecure-session-secret-change-me")
+    the same delivery mechanism already used for OPENROUTER_API_KEY.
+
+    That fallback is published in this repository's own source, so
+    main.assert_safe_auth_config refuses to boot a real deployment still
+    using it - see DEFAULT_SESSION_SECRET."""
+    return os.environ.get("SESSION_SECRET", DEFAULT_SESSION_SECRET)
 
 
 def get_cookie_secure() -> bool:
     """Whether the session cookie should require HTTPS. Defaults to False
     since the app currently runs over plain HTTP; flip via env var once
-    served behind TLS."""
-    return os.environ.get("COOKIE_SECURE", "false").lower() == "true"
+    served behind TLS. Accepts the common truthy spellings - Vercel and
+    Docker deployments set these by hand and "1"/"yes"/"on" are all
+    plausible - not just the literal string "true"."""
+    return os.environ.get("COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def get_github_client_id() -> str | None:
