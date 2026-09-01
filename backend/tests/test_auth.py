@@ -233,3 +233,40 @@ def test_password_endpoints_are_gone(client):
     # method).
     assert client.post("/api/auth/signup", json={"email": "a@b.c", "password": "x" * 10}).status_code == 404
     assert client.post("/api/auth/signin", json={"email": "a@b.c", "password": "x" * 10}).status_code == 404
+
+
+def test_delete_account_requires_a_session(client):
+    assert client.delete("/api/auth/me").status_code == 401
+
+
+def test_delete_account_removes_the_user_and_clears_the_session(authed_client):
+    assert authed_client.delete("/api/auth/me").status_code == 204
+    assert authed_client.get("/api/auth/me").status_code == 401
+
+
+def test_delete_account_cascades_to_documents_and_messages(authed_client):
+    """Erasure has to reach the drafted contract text, not just the account
+    row - that is where the personal data actually is."""
+    created = authed_client.post(
+        "/api/saved-documents", json={"documentTypeId": "Mutual-NDA.md"}
+    )
+    assert created.status_code == 201
+    document_id = created.json()["id"]
+
+    assert authed_client.delete("/api/auth/me").status_code == 204
+
+    from app.db import get_connection
+
+    gen = get_connection()
+    db = next(gen)
+    try:
+        assert db.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"] == 0
+        assert db.execute("SELECT COUNT(*) AS n FROM saved_documents").fetchone()["n"] == 0
+        assert (
+            db.execute(
+                "SELECT COUNT(*) AS n FROM chat_messages WHERE document_id = ?", (document_id,)
+            ).fetchone()["n"]
+            == 0
+        )
+    finally:
+        gen.close()

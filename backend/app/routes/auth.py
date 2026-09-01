@@ -17,7 +17,7 @@ from ..github_oauth import (
 )
 from ..schemas import UserResponse
 from ..session import SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS, create_session_token
-from ..users import LOCAL_DEV_GITHUB_ID, upsert_github_user
+from ..users import LOCAL_DEV_GITHUB_ID, delete_user, upsert_github_user
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -122,3 +122,15 @@ def logout(response: Response) -> None:
 @router.get("/me", response_model=UserResponse)
 def me(user: UserResponse = Depends(get_current_user)) -> UserResponse:
     return user
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_me(
+    response: Response,
+    user: UserResponse = Depends(get_current_user),
+    db: Database = Depends(get_connection),
+) -> None:
+    """Erasure, self-serve. The cascades on saved_documents and chat_messages
+    take the user's documents and transcripts with the row."""
+    delete_user(db, user.id)
+    response.delete_cookie(SESSION_COOKIE_NAME)
