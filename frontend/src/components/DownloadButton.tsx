@@ -21,9 +21,28 @@ const disabledClassName = "ui-btn cursor-not-allowed border-line text-ink-faint"
 interface DownloadButtonProps {
   documentDetail: DocumentDetail;
   values: DocumentFields;
+  /** Demo mode: pressing it asks the visitor to sign in instead of rendering. */
+  locked?: boolean;
+  onLocked?: () => void;
 }
 
-export function DownloadButton({ documentDetail, values }: DownloadButtonProps) {
+export function DownloadButton({
+  documentDetail,
+  values,
+  locked = false,
+  onLocked,
+}: DownloadButtonProps) {
+  // Checked before completeness: the demo document is deliberately part-filled,
+  // so the incomplete branch below would otherwise swallow the press and the
+  // visitor would get no response at all.
+  if (locked) {
+    return (
+      <button type="button" onClick={() => onLocked?.()} className={disabledClassName}>
+        Download PDF
+      </button>
+    );
+  }
+
   if (!isDocumentComplete(documentDetail.fields, values)) {
     const remaining = unfilledFieldCount(documentDetail.fields, values);
     const hint =

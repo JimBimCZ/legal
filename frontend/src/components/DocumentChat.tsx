@@ -6,11 +6,20 @@ import { sendDocumentMessage } from "@/lib/savedDocumentsApi";
 import type { ChatMessage, DocumentFields } from "@/types/document";
 
 interface DocumentChatProps {
-  savedDocumentId: number;
+  /** null in the signed-out demo, where no document is being written to. */
+  savedDocumentId: number | null;
   initialMessages: ChatMessage[];
   currentDocumentTypeId: string;
   onFieldsChange: Dispatch<SetStateAction<DocumentFields>>;
   onDocumentTypeChanged: (documentTypeId: string, documentTypeName: string) => void;
+  /**
+   * Demo mode. The chat renders and reads exactly as it does when signed in -
+   * nothing greyed out, nothing disabled - but every way of sending a turn
+   * calls onLocked instead. A dead-looking panel would undersell the app; the
+   * point is that it looks alive right up until you try to use it.
+   */
+  locked?: boolean;
+  onLocked?: () => void;
 }
 
 const bubbleClassName = "max-w-[85%] rounded px-3.5 py-2.5 text-sm leading-relaxed";
@@ -21,6 +30,8 @@ export function DocumentChat({
   currentDocumentTypeId,
   onFieldsChange,
   onDocumentTypeChanged,
+  locked = false,
+  onLocked,
 }: DocumentChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -39,6 +50,10 @@ export function DocumentChat({
   }, [messages, isLoading]);
 
   async function sendTurn(content: string) {
+    if (locked || savedDocumentId === null) {
+      onLocked?.();
+      return;
+    }
     setIsLoading(true);
     setError(null);
     setPendingContent(content);
@@ -58,6 +73,10 @@ export function DocumentChat({
   }
 
   function handleSend() {
+    if (locked) {
+      onLocked?.();
+      return;
+    }
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
     setMessages((current) => [...current, { role: "user", content: trimmed }]);
@@ -133,7 +152,13 @@ export function DocumentChat({
           id="document-chat-input"
           type="text"
           value={input}
-          onChange={(event) => setInput(event.target.value)}
+          onChange={(event) => {
+            if (locked) {
+              onLocked?.();
+              return;
+            }
+            setInput(event.target.value);
+          }}
           onKeyDown={handleKeyDown}
           placeholder="Type your answer…"
           disabled={isLoading}
@@ -142,7 +167,7 @@ export function DocumentChat({
         <button
           type="button"
           onClick={handleSend}
-          disabled={isLoading || !input.trim()}
+          disabled={!locked && (isLoading || !input.trim())}
           className="ui-btn ui-btn-primary"
         >
           Send

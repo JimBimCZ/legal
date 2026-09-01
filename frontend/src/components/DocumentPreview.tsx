@@ -6,13 +6,23 @@ import type { DocumentDetail, DocumentFields } from "@/types/document";
 interface DocumentPreviewProps {
   documentDetail: DocumentDetail;
   values: DocumentFields;
+  /**
+   * Marks the document as a worked example rather than the reader's own.
+   * This renders in the same styling as a real agreement, so without a
+   * standing marker a screenshot of it could pass for one.
+   */
+  isExample?: boolean;
 }
 
 // Section labels sit on a hairline that spans the column, so the page divides
 // into filed sections rather than free-floating headings.
 const sectionHeadingClassName = "ui-eyebrow mt-8 block border-b border-line pb-2";
 
-export function DocumentPreview({ documentDetail, values }: DocumentPreviewProps) {
+export function DocumentPreview({
+  documentDetail,
+  values,
+  isExample = false,
+}: DocumentPreviewProps) {
   const total = documentDetail.fields.length;
   const filled = total - unfilledFieldCount(documentDetail.fields, values);
   const caption =
@@ -41,7 +51,16 @@ export function DocumentPreview({ documentDetail, values }: DocumentPreviewProps
       </header>
 
       <div className="px-6 pt-7 pb-8 sm:px-8">
-        <h2 className="type-display text-2xl text-heading">{documentDetail.name}</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="type-display text-2xl text-heading">{documentDetail.name}</h2>
+          {/* An outlined stamp rather than a fill: it has to be unmissable in a
+              screenshot without competing with the document it labels. */}
+          {isExample && (
+            <span className="ui-eyebrow rounded border border-line px-2 py-0.5 text-ink-muted">
+              Example
+            </span>
+          )}
+        </div>
 
         <h3 className={sectionHeadingClassName}>The Particulars</h3>
         <dl className="mt-1 divide-y divide-line text-sm">
