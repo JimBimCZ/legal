@@ -128,6 +128,84 @@ def test_callback_reports_a_github_failure(client, fake_github, monkeypatch):
     assert response.headers["location"] == "/?auth_error=github"
 
 
+def test_callback_rejects_a_non_ascii_state(client):
+    """secrets.compare_digest raises TypeError on non-ASCII input rather than
+    returning False - that must still resolve to auth_error=state, not a raw
+    500."""
+    _start_and_get_state(client)
+
+    response = client.get(
+        "/api/auth/github/callback?code=the-code&state=%C3%A9", follow_redirects=False
+    )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/?auth_error=state"
+    assert client.get("/api/auth/me").status_code == 401
+
+
+def test_callback_reports_a_database_failure(client, fake_github, monkeypatch):
+    """A raised database error (a concurrent-insert race, a dropped Postgres
+    connection) must still redirect rather than render a raw 500 - the broad
+    except Exception clause is the backstop for this."""
+
+    def failing_upsert(*args, **kwargs):
+        raise RuntimeError("database exploded")
+
+    monkeypatch.setattr("app.routes.auth.upsert_github_user", failing_upsert)
+    state = _start_and_get_state(client)
+
+    response = client.get(
+        f"/api/auth/github/callback?code=the-code&state={state}", follow_redirects=False
+    )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/?auth_error=github"
+
+
+def test_successful_sign_in_clears_the_state_cookie(client, fake_github):
+    """Load-bearing: without this, a replayed code+state pair after a
+    successful sign-in would still carry a live oauth_state cookie and
+    validate again."""
+    state = _start_and_get_state(client)
+    client.get(f"/api/auth/github/callback?code=c1&state={state}", follow_redirects=False)
+
+    assert github_oauth.OAUTH_STATE_COOKIE_NAME not in client.cookies
+
+    replay = client.get(
+        f"/api/auth/github/callback?code=c2&state={state}", follow_redirects=False
+    )
+    assert replay.headers["location"] == "/?auth_error=state"
+
+
+def test_state_cookie_is_httponly_and_samesite_lax(client):
+    response = client.get("/api/auth/github", follow_redirects=False)
+    set_cookie_headers = response.headers.get_list("set-cookie")
+    state_cookie = next(
+        h for h in set_cookie_headers if h.startswith(f"{github_oauth.OAUTH_STATE_COOKIE_NAME}=")
+    )
+
+    assert "httponly" in state_cookie.lower()
+    # Lax, not Strict: Strict would withhold the cookie on the cross-site
+    # return from github.com and break sign-in for every real browser.
+    assert "samesite=lax" in state_cookie.lower()
+
+
+def test_session_cookie_is_httponly_and_samesite_lax(client, fake_github):
+    from app.session import SESSION_COOKIE_NAME
+
+    state = _start_and_get_state(client)
+    response = client.get(
+        f"/api/auth/github/callback?code=c&state={state}", follow_redirects=False
+    )
+    set_cookie_headers = response.headers.get_list("set-cookie")
+    session_cookie = next(
+        h for h in set_cookie_headers if h.startswith(f"{SESSION_COOKIE_NAME}=")
+    )
+
+    assert "httponly" in session_cookie.lower()
+    assert "samesite=lax" in session_cookie.lower()
+
+
 def test_no_failure_path_returns_json(client, fake_github):
     """The callback is a top-level navigation - raw JSON would land in the
     user's browser."""

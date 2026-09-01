@@ -85,18 +85,33 @@ def github_callback(
 ) -> RedirectResponse:
     if error or not code:
         return _auth_error_redirect("denied")
-    if not state_is_valid(state, oauth_state):
+
+    try:
+        state_valid = state_is_valid(state, oauth_state)
+    except TypeError:
+        # secrets.compare_digest refuses non-ASCII input outright rather than
+        # just returning False - a forged/garbled state is still a state
+        # failure, not an unhandled 500.
+        state_valid = False
+    if not state_valid:
         return _auth_error_redirect("state")
 
     try:
         github_id, login, email = fetch_identity(exchange_code_for_token(code))
+        user_id = upsert_github_user(db, github_id, login, email)
     except NoVerifiedEmailError:
         return _auth_error_redirect("email")
     except (GitHubOAuthError, OSError):
         # OSError covers httpx's transport failures - DNS, connection, timeout.
         return _auth_error_redirect("github")
+    except Exception:
+        # Backstop, not a replacement for the specific clauses above: a
+        # concurrent-insert race on users.github_id, a dropped Postgres
+        # connection mid-callback, or anything else unanticipated. This is a
+        # top-level browser navigation and must never render a raw 500.
+        return _auth_error_redirect("github")
 
-    return _signed_in_redirect(upsert_github_user(db, github_id, login, email))
+    return _signed_in_redirect(user_id)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
