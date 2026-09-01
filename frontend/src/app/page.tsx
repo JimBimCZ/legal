@@ -1,28 +1,40 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { AuthScreen } from "@/components/AuthScreen";
 import { Dashboard } from "@/components/Dashboard";
 import { DocumentChat } from "@/components/DocumentChat";
 import { DocumentPreview } from "@/components/DocumentPreview";
 import { DownloadButton } from "@/components/DownloadButton";
 import { FieldRule } from "@/components/FieldRule";
+import { SignInModal } from "@/components/SignInModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { fetchCurrentUser, signOut } from "@/lib/authApi";
+import { readAndClearAuthError } from "@/lib/authErrors";
+import { fetchDemo, type Demo } from "@/lib/demoApi";
 import { fetchDocumentDetail } from "@/lib/documentsApi";
 import { createSavedDocument, fetchSavedDocument } from "@/lib/savedDocumentsApi";
 import type { User } from "@/types/auth";
 import type { ChatMessage, DocumentDetail, DocumentFields } from "@/types/document";
 import type { SavedDocumentDetail } from "@/types/savedDocument";
 
-type View = "loading" | "auth" | "dashboard" | "creator";
+type View = "loading" | "demo" | "dashboard" | "creator";
+
+// A signed-out visitor gets this long to read before being asked to sign in.
+const DEMO_PROMPT_DELAY_MS = 20_000;
 
 const linkButtonClassName = "ui-link ui-eyebrow";
 
 export default function Home() {
   const [view, setView] = useState<View>("loading");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [demo, setDemo] = useState<Demo | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  // Once the visitor has been asked, the timer never re-arms. Dismissing is an
+  // answer, and asking again on a schedule would read as nagging - the
+  // affordances still prompt, which is enough.
+  const [hasPrompted, setHasPrompted] = useState(false);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
 
@@ -39,14 +51,58 @@ export default function Home() {
   // so a stale, out-of-order response can't clobber a newer one.
   const latestDetailFetch = useRef(0);
 
+  const enterDemo = useCallback(async () => {
+    try {
+      setDemo(await fetchDemo());
+    } catch {
+      // The demo is a shop window, not a dependency: if it fails to load the
+      // visitor still gets the shell and the sign-in prompt.
+      setDemo(null);
+    }
+    setView("demo");
+  }, []);
+
   useEffect(() => {
     fetchCurrentUser()
       .then((user) => {
         setCurrentUser(user);
-        setView(user ? "dashboard" : "auth");
+        if (user) setView("dashboard");
+        else void enterDemo();
       })
-      .catch(() => setView("auth"));
+      .catch(() => void enterDemo());
+  }, [enterDemo]);
+
+  // A failed OAuth round-trip comes back as /?auth_error=<code>. Surface it in
+  // the modal rather than silently dropping the visitor back on the demo.
+  useEffect(() => {
+    const message = readAndClearAuthError();
+    if (!message) return;
+    // The page is prerendered by output: "export", so window.location is
+    // unavailable at build time. A useState lazy initializer would render
+    // nothing at build and the error at hydration - a hydration mismatch,
+    // worse than the cascading render this rule guards against. Read once at
+    // mount, never again. The directive must sit directly above the call it
+    // suppresses; a comment in between silently detaches it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAuthError(message);
+    setIsModalOpen(true);
+    setHasPrompted(true);
   }, []);
+
+  useEffect(() => {
+    if (view !== "demo" || hasPrompted) return;
+    const timer = window.setTimeout(() => {
+      setIsModalOpen(true);
+      setHasPrompted(true);
+    }, DEMO_PROMPT_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [view, hasPrompted]);
+
+  function promptSignIn() {
+    setAuthError(null);
+    setIsModalOpen(true);
+    setHasPrompted(true);
+  }
 
   async function loadDocumentDetail(documentId: string) {
     const fetchId = ++latestDetailFetch.current;
@@ -120,14 +176,14 @@ export default function Home() {
     await signOut();
     setCurrentUser(null);
     handleBackToDashboard();
-    setView("auth");
+    void enterDemo();
   }
 
   function handleAccountDeleted() {
     // The server has already cleared the session cookie.
     setCurrentUser(null);
     handleBackToDashboard();
-    setView("auth");
+    void enterDemo();
   }
 
   if (view === "loading") {
@@ -135,14 +191,6 @@ export default function Home() {
       <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-canvas">
         <FieldRule variant="mark" filled={1} total={1} className="w-24" />
         <p className="ui-eyebrow">Loading…</p>
-      </div>
-    );
-  }
-
-  if (view === "auth") {
-    return (
-      <div className="flex flex-1 flex-col bg-canvas">
-        <AuthScreen />
       </div>
     );
   }
@@ -179,6 +227,14 @@ export default function Home() {
             {view === "creator" && documentDetail && (
               <DownloadButton documentDetail={documentDetail} values={fields} />
             )}
+            {view === "demo" && demo && (
+              <DownloadButton
+                documentDetail={demo.detail}
+                values={demo.fields}
+                locked
+                onLocked={promptSignIn}
+              />
+            )}
           </div>
           <div className="flex items-center justify-self-end gap-3 lg:gap-5">
             {view === "creator" && (
@@ -188,12 +244,20 @@ export default function Home() {
             )}
             {/* Held back to `xl`: at `lg` the third column has just appeared and
                 the email's width pushes both action links onto two lines. */}
-            <span className="hidden font-mono text-[11px] text-ink-muted xl:inline">
-              {currentUser?.email}
-            </span>
-            <button type="button" onClick={handleLogout} className={linkButtonClassName}>
-              Log out
-            </button>
+            {currentUser ? (
+              <>
+                <span className="hidden font-mono text-[11px] text-ink-muted xl:inline">
+                  {currentUser.email}
+                </span>
+                <button type="button" onClick={handleLogout} className={linkButtonClassName}>
+                  Log out
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={promptSignIn} className={linkButtonClassName}>
+                Sign in
+              </button>
+            )}
             <ThemeToggle />
           </div>
         </div>
@@ -209,6 +273,51 @@ export default function Home() {
             refreshKey={dashboardRefreshKey}
             actionError={dashboardError}
           />
+        )}
+
+        {view === "demo" && demo && (
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+            <section aria-labelledby="demo-chat-heading" className="flex flex-col gap-3">
+              <h2 id="demo-chat-heading" className="ui-eyebrow">
+                {demo.detail.name} Details
+              </h2>
+              {/* savedDocumentId is null and locked is set, so no turn can be
+                  sent - but the panel is otherwise the real component, because
+                  a mock-up would undersell what the app actually does. */}
+              <DocumentChat
+                savedDocumentId={null}
+                initialMessages={demo.messages}
+                currentDocumentTypeId={demo.detail.id}
+                onFieldsChange={() => {}}
+                onDocumentTypeChanged={() => {}}
+                locked
+                onLocked={promptSignIn}
+              />
+            </section>
+
+            <section
+              aria-labelledby="demo-preview-heading"
+              className="flex flex-col gap-3 lg:sticky lg:top-8 lg:self-start"
+            >
+              <h2 id="demo-preview-heading" className="ui-eyebrow">
+                Document Preview
+              </h2>
+              <DocumentPreview
+                documentDetail={demo.detail}
+                values={demo.fields}
+                isExample={demo.isExample}
+              />
+            </section>
+          </div>
+        )}
+
+        {view === "demo" && !demo && (
+          <div className="ui-panel p-6">
+            <p className="text-sm font-medium text-flag-ink">
+              The example document couldn&apos;t be loaded. You can still sign in to start your
+              own.
+            </p>
+          </div>
         )}
 
         {view === "creator" && savedDocumentId !== null && documentTypeId !== null && (
@@ -248,6 +357,10 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {isModalOpen && (
+        <SignInModal error={authError} onDismiss={() => setIsModalOpen(false)} />
+      )}
     </div>
   );
 }

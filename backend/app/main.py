@@ -14,7 +14,7 @@ from .config import (
     get_static_dir,
     github_oauth_configured,
 )
-from .routes import auth, chat, documents, health, saved_documents
+from .routes import auth, chat, demo, documents, health, saved_documents
 
 # No-op if the file is absent (e.g. in the Docker image, where the key is
 # instead injected as a real env var via `docker run --env-file`).
@@ -71,6 +71,7 @@ app = FastAPI(title="Legal Platform API", lifespan=lifespan)
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(chat.router)
+app.include_router(demo.router)
 app.include_router(documents.router)
 app.include_router(saved_documents.router)
 

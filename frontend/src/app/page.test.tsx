@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -30,6 +30,7 @@ const { fetchCurrentUser, signOut, deleteAccount } = vi.hoisted(() => ({
   signOut: vi.fn(),
   deleteAccount: vi.fn(),
 }));
+const { fetchDemo } = vi.hoisted(() => ({ fetchDemo: vi.fn() }));
 const { fetchDocumentDetail, fetchDocumentCatalog } = vi.hoisted(() => ({
   fetchDocumentDetail: vi.fn(),
   fetchDocumentCatalog: vi.fn(),
@@ -44,6 +45,7 @@ const { fetchSavedDocuments, createSavedDocument, fetchSavedDocument, sendDocume
 );
 
 vi.mock("@/lib/authApi", () => ({ fetchCurrentUser, signOut, deleteAccount }));
+vi.mock("@/lib/demoApi", () => ({ fetchDemo }));
 vi.mock("@/lib/documentsApi", () => ({ fetchDocumentDetail, fetchDocumentCatalog }));
 vi.mock("@/lib/savedDocumentsApi", () => ({
   fetchSavedDocuments,
@@ -59,6 +61,17 @@ const USER = {
   email: "user@example.com",
   github_login: "octocat",
   created_at: "2026-01-01 00:00:00",
+};
+
+const DEMO = {
+  detail: TEST_DOCUMENT,
+  fields: { customer: "Acme Corp" },
+  messages: [
+    { role: "assistant" as const, content: "Who are the two parties?" },
+    { role: "user" as const, content: "Acme Corp and Beta Industries." },
+    { role: "assistant" as const, content: "Got it. What's the purpose?" },
+  ],
+  isExample: true,
 };
 
 const SAVED_DOCUMENT = {
@@ -82,19 +95,24 @@ beforeEach(() => {
   fetchSavedDocument.mockReset();
   sendDocumentMessage.mockReset();
 
+  fetchDemo.mockReset();
   fetchDocumentCatalog.mockResolvedValue(TEST_CATALOG);
   fetchSavedDocuments.mockResolvedValue([]);
+  fetchDemo.mockResolvedValue(DEMO);
 });
 
 describe("Home (auth-gated multi-user flow)", () => {
-  it("shows the sign-in screen when there is no active session", async () => {
+  it("lands a signed-out visitor on the seeded example document", async () => {
     fetchCurrentUser.mockResolvedValue(null);
     render(<Home />);
 
-    expect(await screen.findByRole("heading", { name: "Legal Document Creator" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /continue with github/i }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: TEST_DOCUMENT.name })).toBeInTheDocument();
+    // Its own chat transcript, so the mechanic is visible and not just the output.
+    expect(screen.getByText("Who are the two parties?")).toBeInTheDocument();
+    // Marked, because it renders in the same styling as a real agreement.
+    expect(screen.getByText("Example")).toBeInTheDocument();
+    // Not asked to sign in before they have looked at anything.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("goes straight to the dashboard when a session already exists", async () => {
@@ -169,7 +187,7 @@ describe("Home (auth-gated multi-user flow)", () => {
     expect(fetchSavedDocuments).toHaveBeenCalled();
   });
 
-  it("logs out back to the sign-in screen", async () => {
+  it("logs out back to the example document", async () => {
     const user = userEvent.setup();
     fetchCurrentUser.mockResolvedValue(USER);
     signOut.mockResolvedValue(undefined);
@@ -178,8 +196,134 @@ describe("Home (auth-gated multi-user flow)", () => {
     await user.click(await screen.findByRole("button", { name: "Log out" }));
 
     expect(signOut).toHaveBeenCalled();
-    expect(
-      await screen.findByRole("link", { name: /continue with github/i }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Example")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+  });
+});
+
+describe("Home (signed-out demo)", () => {
+  beforeEach(() => {
+    fetchCurrentUser.mockResolvedValue(null);
+  });
+
+  async function renderDemo() {
+    render(<Home />);
+    await screen.findByText("Example");
+  }
+
+  it("asks the visitor to sign in when they try to send a message", async () => {
+    const user = userEvent.setup();
+    await renderDemo();
+
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /continue with github/i })).toHaveAttribute(
+      "href",
+      "/api/auth/github",
+    );
+  });
+
+  it("asks the visitor to sign in when they type into the chat", async () => {
+    const user = userEvent.setup();
+    await renderDemo();
+
+    await user.type(screen.getByLabelText("Message"), "a");
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("asks the visitor to sign in when they try to download", async () => {
+    const user = userEvent.setup();
+    await renderDemo();
+
+    await user.click(screen.getByRole("button", { name: /download pdf/i }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("asks from the header Sign in button", async () => {
+    const user = userEvent.setup();
+    await renderDemo();
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("never sends a turn to the server while locked", async () => {
+    const user = userEvent.setup();
+    await renderDemo();
+
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(sendDocumentMessage).not.toHaveBeenCalled();
+  });
+
+  it("lets the visitor dismiss and keep reading", async () => {
+    const user = userEvent.setup();
+    await renderDemo();
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.click(await screen.findByRole("button", { name: /keep looking around/i }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Example")).toBeInTheDocument();
+  });
+
+  it("prompts on its own after the reading delay", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await renderDemo();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(20_000);
+      });
+
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not re-arm the timer once dismissed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      await renderDemo();
+
+      await act(async () => {
+        vi.advanceTimersByTime(20_000);
+      });
+      await user.click(screen.getByRole("button", { name: /keep looking around/i }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(60_000);
+      });
+
+      // Dismissing is an answer. Re-asking on a schedule would be nagging.
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("surfaces a failed sign-in round-trip in the modal", async () => {
+    window.history.replaceState({}, "", "/?auth_error=state");
+    await renderDemo();
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText(/expired/i)).toBeInTheDocument();
+    expect(window.location.search).toBe("");
+  });
+
+  it("still offers sign-in when the example fails to load", async () => {
+    fetchDemo.mockRejectedValue(new Error("nope"));
+    render(<Home />);
+
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.getByText(/couldn't be loaded/i)).toBeInTheDocument();
   });
 });
