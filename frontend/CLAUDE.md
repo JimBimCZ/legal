@@ -29,7 +29,7 @@ There is an OPENROUTER_API_KEY in the .env file in the project root.
 The entire project should be packaged into a Docker container.  
 The backend should be in backend/ and be a uv project, using FastAPI.  
 The frontend should be in frontend/  
-The database should use SQLLite, allowing for a users table with sign up and sign in. The schema is created on first start if absent and then reused, and the DB file lives on a Docker named volume, so accounts and saved documents persist across container restarts and rebuilds (this supersedes the original "created from scratch each time the container is brought up" behavior, which forced users to sign up again after every restart).  
+The database should use SQLLite, with a users table holding a GitHub OAuth identity (`github_id`, `github_login`, `email`, `created_at` - no password of any kind). The schema is created on first start if absent and then reused, and the DB file lives on a Docker named volume, so accounts and saved documents persist across container restarts and rebuilds (this supersedes the original "created from scratch each time the container is brought up" behavior, which forced users to sign up again after every restart).  
 Consider statically building the frontend and serving it via FastAPI, if that will work.  
 There should be scripts in scripts/ for:  
 ```bash
@@ -277,10 +277,11 @@ Four rules keep it coherent:
   and the PDF confirmed to still generate under the new font stack
 
 ### Current API Endpoints
-- `POST /api/auth/signup` - Create account, set session cookie, return user record
-- `POST /api/auth/signin` - Verify credentials, set session cookie, return user record
+- `GET /api/auth/github` - Begin GitHub sign-in, or issue a local development session when OAuth is unconfigured
+- `GET /api/auth/github/callback` - Complete sign-in and set the session cookie
 - `POST /api/auth/logout` - Clear the session cookie
 - `GET /api/auth/me` - Current authenticated user, or 401
+- `DELETE /api/auth/me` - Delete the account, its documents, and its chat history
 - `GET /api/saved-documents` - List the current user's saved documents (id, catalog type, timestamps)
 - `POST /api/saved-documents` - Create a new saved document for the current user from a catalog type id; seeds the greeting message
 - `GET /api/saved-documents/{id}` - Full detail (fields + chat history) for one of the current user's saved documents; 404 if missing or not owned
@@ -289,6 +290,13 @@ Four rules keep it coherent:
 - `GET /api/documents` - List the 11 available document types from the catalog
 - `GET /api/documents/{document_id}` - Parsed detail for one document type (fields + numbered content blocks) for rendering the form/preview/PDF
 - `GET /api/health` - Health check
+
+### GitHub OAuth and Account Deletion
+- Password auth is gone. Sign-in is now GitHub OAuth (`backend/app/github_oauth.py`), requesting only the `user:email` scope - the narrowest scope that still yields a verified address. `GET /api/auth/github` redirects to GitHub's authorize endpoint with a signed CSRF state cookie; `GET /api/auth/github/callback` validates that state, exchanges the code, fetches the verified identity, and upserts the user before setting the session cookie and redirecting back to `/`
+- The `users` table was rebuilt around the GitHub identity: `id`, `github_id` (unique, matched on - not email, since a GitHub login or address can change but the numeric id doesn't), `github_login`, `email`, `created_at`. There is no password column of any kind. Because the old and new schemas can't be reconciled column-for-column, `backend/app/db.py`'s `init_db()` detects a pre-OAuth database (`has_legacy_password_column`, looking for the old `hashed_password` column) and runs a destructive one-shot migration (`_drop_legacy_tables`) that drops `users`, `saved_documents`, and `chat_messages` before recreating them from the current schema - old password accounts have no GitHub identity to carry forward, so this is a clean cutover, not a data-preserving migration
+- A development sign-in bypass keeps the local quick-start credential-free: when `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` are unset, `GET /api/auth/github` skips the GitHub round-trip entirely and issues a session for a fixed local-dev user (`github_id = 0`, which GitHub never assigns) instead. This is hard-gated so it can't reach a real deployment: `backend/app/main.py`'s `assert_safe_auth_config()` runs at startup and refuses to boot if OAuth is unconfigured while `DATABASE_URL` or `COOKIE_SECURE` is set - both of which a real deployment sets and a local run does not
+- `DELETE /api/auth/me` (`backend/app/routes/auth.py`) lets a signed-in user erase themselves: it deletes the `users` row, and `ON DELETE CASCADE` on `saved_documents.user_id` and `chat_messages.document_id` takes every document and chat transcript with it in the same statement, then clears the session cookie. The dashboard exposes this as a two-step control (a "Delete account" action that requires a confirming second click before it fires) so it can't be triggered by a single misclick
+- New privacy policy at `/privacy` (`frontend/src/app/privacy/page.tsx`), linked from the dashboard, describing what is collected (GitHub id/login/email, saved document field values, chat history), who it's shared with, and how to exercise erasure. It names Cerebras as the AI inference provider reached via OpenRouter, since `document_chat.py` pins `provider.order = ["cerebras"]` for the chat completion calls
 
 <!-- BEGIN:nextjs-agent-rules -->
 
