@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -127,9 +128,9 @@ export default function PrivacyPage() {
       </Section>
 
       <p className="border-t border-line pt-6">
-        <a href="/" className="ui-link ui-eyebrow">
+        <Link href="/" className="ui-link ui-eyebrow">
           ← Back to the app
-        </a>
+        </Link>
       </p>
     </div>
   );

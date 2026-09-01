@@ -130,7 +130,7 @@ request leaves nothing behind and can be safely retried.
 cd backend
 uv sync
 uv run uvicorn app.main:app --reload    # http://localhost:8000
-uv run pytest                           # 65 tests
+uv run pytest                           # 122 tests
 ```
 
 The database schema is created on first start if absent and reused afterwards.
@@ -140,7 +140,7 @@ The database schema is created on first start if absent and reused afterwards.
 ```bash
 cd frontend
 npm install
-npm run test        # 71 tests (vitest)
+npm run test        # 89 tests (vitest)
 npm run lint
 npm run build       # static export to frontend/out
 ```

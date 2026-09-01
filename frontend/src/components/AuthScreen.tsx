@@ -24,6 +24,12 @@ export function AuthScreen() {
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get("auth_error");
     if (!code) return;
+    // The page is prerendered by output: "export", so window.location is
+    // unavailable at build time. A useState lazy initializer would render
+    // nothing at build and the error at hydration, which is a hydration
+    // mismatch - worse than the cascading render this rule guards against.
+    // The value is read once at mount and never changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setError(ERROR_MESSAGES[code] ?? FALLBACK_MESSAGE);
     window.history.replaceState({}, "", window.location.pathname);
   }, []);
