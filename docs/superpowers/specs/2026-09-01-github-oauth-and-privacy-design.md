@@ -152,6 +152,25 @@ production. Local development never reaches GitHub.
 New environment variables, both production-only: `GITHUB_CLIENT_ID`,
 `GITHUB_CLIENT_SECRET`.
 
+### These must stay unset locally
+
+Exactly one GitHub OAuth App exists, registered with the production callback
+`https://legal-jimbimczs-projects.vercel.app/api/auth/github/callback`. Its
+credentials are already set in the Vercel project *and* were copied into the
+local `.env`.
+
+They have to come out of `.env`. `github_oauth_configured()` returns true
+whenever both are present, which suppresses the dev bypass and sends local
+sign-in through a real GitHub round-trip — and GitHub would then redirect to the
+production callback, so local sign-in could never complete.
+
+Implementation step: comment out `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`
+in `.env` (comment, not delete, so the values stay recoverable) and leave
+`OPENROUTER_API_KEY` untouched. `.env` is gitignored and untracked, so nothing
+about this reaches the repository. The README must state that these two
+variables are production-only and that setting them locally breaks local
+sign-in.
+
 ## 5. Account deletion
 
 `DELETE /api/auth/me`, authenticated, returns 204.
