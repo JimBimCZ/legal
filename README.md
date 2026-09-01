@@ -133,7 +133,7 @@ request leaves nothing behind and can be safely retried.
 cd backend
 uv sync
 uv run uvicorn app.main:app --reload    # http://localhost:8000
-uv run pytest                           # 143 tests
+uv run pytest                           # 143 tests (140 + 3 skipped without a frontend build)
 ```
 
 The database schema is created on first start if absent and reused afterwards.
