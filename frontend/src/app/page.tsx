@@ -135,12 +135,7 @@ export default function Home() {
   if (view === "auth") {
     return (
       <div className="flex flex-1 flex-col bg-canvas">
-        <AuthScreen
-          onAuthenticated={(user) => {
-            setCurrentUser(user);
-            setView("dashboard");
-          }}
-        />
+        <AuthScreen />
       </div>
     );
   }

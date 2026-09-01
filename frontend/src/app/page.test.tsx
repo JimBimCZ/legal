@@ -25,11 +25,10 @@ vi.mock("@react-pdf/renderer", () => ({
   ),
 }));
 
-const { fetchCurrentUser, signIn, signUp, signOut } = vi.hoisted(() => ({
+const { fetchCurrentUser, signOut, deleteAccount } = vi.hoisted(() => ({
   fetchCurrentUser: vi.fn(),
-  signIn: vi.fn(),
-  signUp: vi.fn(),
   signOut: vi.fn(),
+  deleteAccount: vi.fn(),
 }));
 const { fetchDocumentDetail, fetchDocumentCatalog } = vi.hoisted(() => ({
   fetchDocumentDetail: vi.fn(),
@@ -44,7 +43,7 @@ const { fetchSavedDocuments, createSavedDocument, fetchSavedDocument, sendDocume
   }),
 );
 
-vi.mock("@/lib/authApi", () => ({ fetchCurrentUser, signIn, signUp, signOut }));
+vi.mock("@/lib/authApi", () => ({ fetchCurrentUser, signOut, deleteAccount }));
 vi.mock("@/lib/documentsApi", () => ({ fetchDocumentDetail, fetchDocumentCatalog }));
 vi.mock("@/lib/savedDocumentsApi", () => ({
   fetchSavedDocuments,
@@ -55,7 +54,12 @@ vi.mock("@/lib/savedDocumentsApi", () => ({
 
 const { default: Home } = await import("@/app/page");
 
-const USER = { id: 1, email: "user@example.com", created_at: "2026-01-01 00:00:00" };
+const USER = {
+  id: 1,
+  email: "user@example.com",
+  github_login: "octocat",
+  created_at: "2026-01-01 00:00:00",
+};
 
 const SAVED_DOCUMENT = {
   id: 7,
@@ -69,8 +73,7 @@ const SAVED_DOCUMENT = {
 
 beforeEach(() => {
   fetchCurrentUser.mockReset();
-  signIn.mockReset();
-  signUp.mockReset();
+  deleteAccount.mockReset();
   signOut.mockReset();
   fetchDocumentDetail.mockReset();
   fetchDocumentCatalog.mockReset();
@@ -89,7 +92,9 @@ describe("Home (auth-gated multi-user flow)", () => {
     render(<Home />);
 
     expect(await screen.findByRole("heading", { name: "Legal Document Creator" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /continue with github/i }),
+    ).toBeInTheDocument();
   });
 
   it("goes straight to the dashboard when a session already exists", async () => {
@@ -98,21 +103,6 @@ describe("Home (auth-gated multi-user flow)", () => {
 
     expect(await screen.findByRole("heading", { name: "Your Documents" })).toBeInTheDocument();
     expect(screen.getByText(USER.email)).toBeInTheDocument();
-  });
-
-  it("reaches the dashboard after signing in", async () => {
-    const user = userEvent.setup();
-    fetchCurrentUser.mockResolvedValue(null);
-    signIn.mockResolvedValue(USER);
-
-    render(<Home />);
-    await screen.findByRole("button", { name: "Sign in" });
-
-    await user.type(screen.getByLabelText("Email"), "user@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.click(screen.getByRole("button", { name: "Sign in" }));
-
-    expect(await screen.findByRole("heading", { name: "Your Documents" })).toBeInTheDocument();
   });
 
   it("shows an empty state on the dashboard with no saved documents", async () => {
@@ -188,6 +178,8 @@ describe("Home (auth-gated multi-user flow)", () => {
     await user.click(await screen.findByRole("button", { name: "Log out" }));
 
     expect(signOut).toHaveBeenCalled();
-    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: /continue with github/i }),
+    ).toBeInTheDocument();
   });
 });
