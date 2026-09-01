@@ -3,12 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import { Dashboard } from "@/components/Dashboard";
+import { deleteAccount } from "@/lib/authApi";
 
 const { fetchSavedDocuments } = vi.hoisted(() => ({ fetchSavedDocuments: vi.fn() }));
 const { fetchDocumentCatalog } = vi.hoisted(() => ({ fetchDocumentCatalog: vi.fn() }));
 
 vi.mock("@/lib/savedDocumentsApi", () => ({ fetchSavedDocuments }));
 vi.mock("@/lib/documentsApi", () => ({ fetchDocumentCatalog }));
+vi.mock("@/lib/authApi", () => ({
+  deleteAccount: vi.fn(),
+}));
 
 const CATALOG = [
   { id: "Mutual-NDA.md", name: "Mutual Non-Disclosure Agreement", description: "A mutual NDA." },
@@ -26,14 +30,24 @@ const SAVED_DOCUMENTS = [
 
 beforeEach(() => {
   fetchSavedDocuments.mockReset();
+  fetchSavedDocuments.mockResolvedValue([]);
   fetchDocumentCatalog.mockReset();
   fetchDocumentCatalog.mockResolvedValue(CATALOG);
+  vi.mocked(deleteAccount).mockReset();
 });
 
 describe("Dashboard", () => {
   it("shows an empty state when the user has no saved documents", async () => {
     fetchSavedDocuments.mockResolvedValue([]);
-    render(<Dashboard onResume={vi.fn()} onCreateNew={vi.fn()} refreshKey={0} actionError={null} />);
+    render(
+      <Dashboard
+        onResume={vi.fn()}
+        onCreateNew={vi.fn()}
+        onAccountDeleted={vi.fn()}
+        refreshKey={0}
+        actionError={null}
+      />,
+    );
 
     expect(await screen.findByText(/don't have any documents yet/)).toBeInTheDocument();
   });
@@ -43,7 +57,15 @@ describe("Dashboard", () => {
     const onResume = vi.fn();
     fetchSavedDocuments.mockResolvedValue(SAVED_DOCUMENTS);
 
-    render(<Dashboard onResume={onResume} onCreateNew={vi.fn()} refreshKey={0} actionError={null} />);
+    render(
+      <Dashboard
+        onResume={onResume}
+        onCreateNew={vi.fn()}
+        onAccountDeleted={vi.fn()}
+        refreshKey={0}
+        actionError={null}
+      />,
+    );
     await user.click(await screen.findByRole("button", { name: /Mutual Non-Disclosure Agreement/ }));
 
     expect(onResume).toHaveBeenCalledWith(1);
@@ -54,7 +76,15 @@ describe("Dashboard", () => {
     const onCreateNew = vi.fn();
     fetchSavedDocuments.mockResolvedValue([]);
 
-    render(<Dashboard onResume={vi.fn()} onCreateNew={onCreateNew} refreshKey={0} actionError={null} />);
+    render(
+      <Dashboard
+        onResume={vi.fn()}
+        onCreateNew={onCreateNew}
+        onAccountDeleted={vi.fn()}
+        refreshKey={0}
+        actionError={null}
+      />,
+    );
     await user.click(await screen.findByRole("button", { name: "+ New Document" }));
     await user.click(await screen.findByRole("button", { name: /Mutual Non-Disclosure Agreement/ }));
 
@@ -67,6 +97,7 @@ describe("Dashboard", () => {
       <Dashboard
         onResume={vi.fn()}
         onCreateNew={vi.fn()}
+        onAccountDeleted={vi.fn()}
         refreshKey={0}
         actionError="Failed to create the document. Please try again."
       />,
@@ -80,12 +111,121 @@ describe("Dashboard", () => {
   it("re-fetches the list when refreshKey changes", async () => {
     fetchSavedDocuments.mockResolvedValue([]);
     const { rerender } = render(
-      <Dashboard onResume={vi.fn()} onCreateNew={vi.fn()} refreshKey={0} actionError={null} />,
+      <Dashboard
+        onResume={vi.fn()}
+        onCreateNew={vi.fn()}
+        onAccountDeleted={vi.fn()}
+        refreshKey={0}
+        actionError={null}
+      />,
     );
     await screen.findByText(/don't have any documents yet/);
     expect(fetchSavedDocuments).toHaveBeenCalledTimes(1);
 
-    rerender(<Dashboard onResume={vi.fn()} onCreateNew={vi.fn()} refreshKey={1} actionError={null} />);
+    rerender(
+      <Dashboard
+        onResume={vi.fn()}
+        onCreateNew={vi.fn()}
+        onAccountDeleted={vi.fn()}
+        refreshKey={1}
+        actionError={null}
+      />,
+    );
     expect(fetchSavedDocuments).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("account deletion", () => {
+  it("asks for confirmation before deleting", async () => {
+    const { deleteAccount } = await import("@/lib/authApi");
+    render(
+      <Dashboard
+        onResume={vi.fn()}
+        onCreateNew={vi.fn()}
+        onAccountDeleted={vi.fn()}
+        refreshKey={0}
+        actionError={null}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /delete account/i }));
+
+    expect(deleteAccount).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /deletes everything/i })).toBeInTheDocument();
+  });
+
+  it("deletes and notifies the parent once confirmed", async () => {
+    const { deleteAccount } = await import("@/lib/authApi");
+    vi.mocked(deleteAccount).mockResolvedValue(undefined);
+    const onAccountDeleted = vi.fn();
+    render(
+      <Dashboard
+        onResume={vi.fn()}
+        onCreateNew={vi.fn()}
+        onAccountDeleted={onAccountDeleted}
+        refreshKey={0}
+        actionError={null}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /delete account/i }));
+    await userEvent.click(screen.getByRole("button", { name: /deletes everything/i }));
+
+    expect(deleteAccount).toHaveBeenCalledOnce();
+    expect(onAccountDeleted).toHaveBeenCalledOnce();
+  });
+
+  it("can be backed out of", async () => {
+    const { deleteAccount } = await import("@/lib/authApi");
+    render(
+      <Dashboard
+        onResume={vi.fn()}
+        onCreateNew={vi.fn()}
+        onAccountDeleted={vi.fn()}
+        refreshKey={0}
+        actionError={null}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /delete account/i }));
+    await userEvent.click(screen.getByRole("button", { name: /keep my account/i }));
+
+    expect(deleteAccount).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /delete account/i })).toBeInTheDocument();
+  });
+
+  it("reports a failed deletion without signing the user out", async () => {
+    const { deleteAccount } = await import("@/lib/authApi");
+    vi.mocked(deleteAccount).mockRejectedValue(new Error("Server said no."));
+    const onAccountDeleted = vi.fn();
+    render(
+      <Dashboard
+        onResume={vi.fn()}
+        onCreateNew={vi.fn()}
+        onAccountDeleted={onAccountDeleted}
+        refreshKey={0}
+        actionError={null}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /delete account/i }));
+    await userEvent.click(screen.getByRole("button", { name: /deletes everything/i }));
+
+    expect(screen.getByText("Server said no.")).toBeInTheDocument();
+    expect(onAccountDeleted).not.toHaveBeenCalled();
+  });
+
+  it("links to the privacy policy", () => {
+    render(
+      <Dashboard
+        onResume={vi.fn()}
+        onCreateNew={vi.fn()}
+        onAccountDeleted={vi.fn()}
+        refreshKey={0}
+        actionError={null}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: /privacy/i })).toHaveAttribute("href", "/privacy");
   });
 });

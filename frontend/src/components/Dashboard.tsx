@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { DocumentMenu } from "@/components/DocumentMenu";
+import { deleteAccount } from "@/lib/authApi";
 import { cardButtonClassName, cardGridClassName, cardTitleClassName } from "@/lib/cardStyles";
 import { documentTypeCode } from "@/lib/documentTypeCode";
 import { fetchSavedDocuments } from "@/lib/savedDocumentsApi";
@@ -11,14 +12,38 @@ import type { SavedDocumentSummary } from "@/types/savedDocument";
 interface DashboardProps {
   onResume: (documentId: number) => void;
   onCreateNew: (documentTypeId: string, documentTypeName: string) => void;
+  onAccountDeleted: () => void;
   refreshKey: number;
   actionError: string | null;
 }
 
-export function Dashboard({ onResume, onCreateNew, refreshKey, actionError }: DashboardProps) {
+export function Dashboard({
+  onResume,
+  onCreateNew,
+  onAccountDeleted,
+  refreshKey,
+  actionError,
+}: DashboardProps) {
   const [documents, setDocuments] = useState<SavedDocumentSummary[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    setDeleteError(null);
+    setIsDeleting(true);
+    try {
+      await deleteAccount();
+      onAccountDeleted();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete your account.");
+      setIsConfirmingDelete(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +128,52 @@ export function Dashboard({ onResume, onCreateNew, refreshKey, actionError }: Da
           ))}
         </div>
       )}
+
+      {/* Account-level actions sit under the documents, behind a rule: this is
+          the only screen that is the account rather than a document. Deletion
+          is irreversible and cascades, so it takes two deliberate clicks -
+          a second inline button rather than a modal, which would be the
+          heaviest thing on an otherwise quiet page. */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
+        <a href="/privacy" className="ui-link ui-eyebrow">
+          Privacy
+        </a>
+
+        <div className="flex flex-col items-end gap-2">
+          {deleteError && (
+            <p className="border-l-2 border-flag py-1 pl-3 text-sm font-medium text-flag-ink">
+              {deleteError}
+            </p>
+          )}
+          {isConfirmingDelete ? (
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => setIsConfirmingDelete(false)}
+                className="ui-link ui-eyebrow"
+              >
+                Keep my account
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="ui-btn ui-btn-quiet text-flag-ink"
+              >
+                {isDeleting ? "Deleting…" : "This deletes everything — confirm"}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsConfirmingDelete(true)}
+              className="ui-link ui-eyebrow"
+            >
+              Delete account
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -123,6 +123,13 @@ export default function Home() {
     setView("auth");
   }
 
+  function handleAccountDeleted() {
+    // The server has already cleared the session cookie.
+    setCurrentUser(null);
+    handleBackToDashboard();
+    setView("auth");
+  }
+
   if (view === "loading") {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-canvas">
@@ -198,6 +205,7 @@ export default function Home() {
           <Dashboard
             onResume={handleResume}
             onCreateNew={handleCreateNew}
+            onAccountDeleted={handleAccountDeleted}
             refreshKey={dashboardRefreshKey}
             actionError={dashboardError}
           />
