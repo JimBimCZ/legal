@@ -19,8 +19,9 @@ from .config import get_database_url, get_db_path
 SQLITE_SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT NOT NULL UNIQUE,
-    hashed_password TEXT NOT NULL,
+    github_id INTEGER NOT NULL UNIQUE,
+    github_login TEXT NOT NULL,
+    email TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -50,8 +51,9 @@ _PG_NOW = "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD HH24:MI:SS')"
 POSTGRES_SCHEMA_SQL = f"""
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
-    email TEXT NOT NULL UNIQUE,
-    hashed_password TEXT NOT NULL,
+    github_id BIGINT NOT NULL UNIQUE,
+    github_login TEXT NOT NULL,
+    email TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT {_PG_NOW}
 );
 
@@ -139,20 +141,45 @@ def _connect() -> Database:
     return Database(conn, postgres=False)
 
 
+def has_legacy_password_column(conn: Any, postgres: bool) -> bool:
+    """True when `users` still has the pre-OAuth `hashed_password` column.
+
+    The schema strings are all CREATE TABLE IF NOT EXISTS, so an existing
+    table is never altered - a database from before GitHub sign-in would keep
+    its old shape forever and never gain github_id. Detecting that shape is
+    what lets init_db replace it."""
+    if postgres:
+        row = conn.execute(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'users' AND column_name = 'hashed_password'"
+        ).fetchone()
+        return row is not None
+    return any(row[1] == "hashed_password" for row in conn.execute("PRAGMA table_info(users)"))
+
+
+def _drop_legacy_tables(conn: Any, postgres: bool) -> None:
+    """Drop everything the old password-based schema owned.
+
+    Destructive on purpose: accounts cannot be carried across, because the old
+    rows have no GitHub identity to match on. Children first so SQLite's
+    foreign keys stay satisfied."""
+    suffix = " CASCADE" if postgres else ""
+    for table in ("chat_messages", "saved_documents", "users"):
+        conn.execute(f"DROP TABLE IF EXISTS {table}{suffix}")
+
+
 def init_db() -> None:
     """Ensure the schema exists, leaving any already-stored data in place.
 
-    Called on every process start. Every statement is `IF NOT EXISTS`, so a
-    restart re-uses the existing tables rather than recreating them - accounts
-    and saved documents survive a restart or redeploy. On Vercel that
-    durability comes from Postgres being external to the container, which
-    scales to zero and loses its filesystem; in Docker it comes from the
-    SQLite file living on a named volume mounted at /app/data (see
-    scripts/start-*)."""
+    The one exception is a database still in the pre-OAuth shape: those tables
+    are dropped and rebuilt, because password accounts have no GitHub identity
+    to migrate onto. See _drop_legacy_tables."""
     if is_postgres():
         import psycopg
 
         with psycopg.connect(get_database_url()) as conn:
+            if has_legacy_password_column(conn, postgres=True):
+                _drop_legacy_tables(conn, postgres=True)
             conn.execute(POSTGRES_SCHEMA_SQL)
             conn.commit()
         return
@@ -161,6 +188,8 @@ def init_db() -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
+        if has_legacy_password_column(conn, postgres=False):
+            _drop_legacy_tables(conn, postgres=False)
         conn.executescript(SQLITE_SCHEMA_SQL)
         conn.commit()
     finally:
