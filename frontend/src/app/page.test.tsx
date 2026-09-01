@@ -197,7 +197,7 @@ describe("Home (auth-gated multi-user flow)", () => {
 
     expect(signOut).toHaveBeenCalled();
     expect(await screen.findByText("Example")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
   });
 });
 
@@ -242,13 +242,15 @@ describe("Home (signed-out demo)", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
-  it("asks from the header Sign in button", async () => {
-    const user = userEvent.setup();
+  it("sends the header Sign in straight to GitHub, without a dialog in the way", async () => {
     await renderDemo();
 
-    await user.click(screen.getByRole("button", { name: "Sign in" }));
-
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // Asking outright should not be answered with a dialog offering to ask.
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/api/auth/github",
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("never sends a turn to the server while locked", async () => {
@@ -264,11 +266,13 @@ describe("Home (signed-out demo)", () => {
     const user = userEvent.setup();
     await renderDemo();
 
-    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
     await user.click(await screen.findByRole("button", { name: /keep looking around/i }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText("Example")).toBeInTheDocument();
+    // And the header route out stays available, un-modalled.
+    expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
   });
 
   it("prompts on its own after the reading delay", async () => {
@@ -323,7 +327,7 @@ describe("Home (signed-out demo)", () => {
     fetchDemo.mockRejectedValue(new Error("nope"));
     render(<Home />);
 
-    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Sign in" })).toBeInTheDocument();
     expect(screen.getByText(/couldn't be loaded/i)).toBeInTheDocument();
   });
 });

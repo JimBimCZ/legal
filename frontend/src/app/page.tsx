@@ -254,9 +254,14 @@ export default function Home() {
                 </button>
               </>
             ) : (
-              <button type="button" onClick={promptSignIn} className={linkButtonClassName}>
+              // Straight to GitHub, not through the modal. The modal exists to
+              // interrupt someone using a locked control and explain why; this
+              // is the visitor asking outright, and answering that with a
+              // dialog offering to do it is a wasted click - worse right after
+              // they have just dismissed that same dialog.
+              <a href="/api/auth/github" className={linkButtonClassName}>
                 Sign in
-              </button>
+              </a>
             )}
             <ThemeToggle />
           </div>
