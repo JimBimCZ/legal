@@ -1,11 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, Response, status
+from fastapi.responses import RedirectResponse
 
-from ..config import get_cookie_secure
+from ..config import get_cookie_secure, github_oauth_configured
 from ..db import Database, get_connection
 from ..deps import get_current_user
-from ..schemas import SigninRequest, SignupRequest, UserResponse
-from ..security import hash_password, verify_password
+from ..github_oauth import (
+    OAUTH_STATE_COOKIE_NAME,
+    STATE_MAX_AGE_SECONDS,
+    GitHubOAuthError,
+    NoVerifiedEmailError,
+    authorize_url,
+    create_state,
+    exchange_code_for_token,
+    fetch_identity,
+    state_is_valid,
+)
+from ..schemas import UserResponse
 from ..session import SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS, create_session_token
+from ..users import LOCAL_DEV_GITHUB_ID, upsert_github_user
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -21,43 +33,70 @@ def _set_session_cookie(response: Response, user_id: int) -> None:
     )
 
 
-@router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def signup(
-    payload: SignupRequest, response: Response, db: Database = Depends(get_connection)
-) -> UserResponse:
-    existing = db.execute(
-        "SELECT id FROM users WHERE email = ?", (payload.email,)
-    ).fetchone()
-    if existing is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+def _signed_in_redirect(user_id: int) -> RedirectResponse:
+    response = RedirectResponse("/", status_code=status.HTTP_302_FOUND)
+    _set_session_cookie(response, user_id)
+    response.delete_cookie(OAUTH_STATE_COOKIE_NAME)
+    return response
 
-    hashed = hash_password(payload.password)
-    user_id = db.insert_returning_id(
-        "INSERT INTO users (email, hashed_password) VALUES (?, ?)",
-        (payload.email, hashed),
+
+def _auth_error_redirect(code: str) -> RedirectResponse:
+    """Every callback failure lands here.
+
+    The callback is a top-level browser navigation, so raising HTTPException
+    would render raw JSON at the user. The auth screen reads auth_error from
+    the query string and renders a message instead."""
+    response = RedirectResponse(f"/?auth_error={code}", status_code=status.HTTP_302_FOUND)
+    response.delete_cookie(OAUTH_STATE_COOKIE_NAME)
+    return response
+
+
+@router.get("/github")
+def github_start(db: Database = Depends(get_connection)) -> RedirectResponse:
+    if not github_oauth_configured():
+        # Local development: no credentials, so no round-trip to make. Boot
+        # refuses this path on anything resembling a deployment - see
+        # main.assert_safe_auth_config.
+        user_id = upsert_github_user(db, LOCAL_DEV_GITHUB_ID, "local", "local@localhost")
+        return _signed_in_redirect(user_id)
+
+    state = create_state()
+    response = RedirectResponse(authorize_url(state), status_code=status.HTTP_302_FOUND)
+    response.set_cookie(
+        OAUTH_STATE_COOKIE_NAME,
+        state,
+        max_age=STATE_MAX_AGE_SECONDS,
+        httponly=True,
+        # Lax, not Strict: the cookie has to survive the redirect back from
+        # github.com, and Strict would withhold it on a cross-site navigation.
+        samesite="lax",
+        secure=get_cookie_secure(),
     )
-    db.commit()
-    row = db.execute(
-        "SELECT id, email, created_at FROM users WHERE id = ?", (user_id,)
-    ).fetchone()
-    _set_session_cookie(response, row["id"])
-    return UserResponse(**dict(row))
+    return response
 
 
-@router.post("/signin", response_model=UserResponse)
-def signin(
-    payload: SigninRequest, response: Response, db: Database = Depends(get_connection)
-) -> UserResponse:
-    row = db.execute(
-        "SELECT id, email, hashed_password, created_at FROM users WHERE email = ?",
-        (payload.email,),
-    ).fetchone()
-    # Identical error for "no such user" and "wrong password" to avoid leaking
-    # which emails are registered.
-    if row is None or not verify_password(payload.password, row["hashed_password"]):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-    _set_session_cookie(response, row["id"])
-    return UserResponse(id=row["id"], email=row["email"], created_at=row["created_at"])
+@router.get("/github/callback")
+def github_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    oauth_state: str | None = Cookie(default=None, alias=OAUTH_STATE_COOKIE_NAME),
+    db: Database = Depends(get_connection),
+) -> RedirectResponse:
+    if error or not code:
+        return _auth_error_redirect("denied")
+    if not state_is_valid(state, oauth_state):
+        return _auth_error_redirect("state")
+
+    try:
+        github_id, login, email = fetch_identity(exchange_code_for_token(code))
+    except NoVerifiedEmailError:
+        return _auth_error_redirect("email")
+    except (GitHubOAuthError, OSError):
+        # OSError covers httpx's transport failures - DNS, connection, timeout.
+        return _auth_error_redirect("github")
+
+    return _signed_in_redirect(upsert_github_user(db, github_id, login, email))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

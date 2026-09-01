@@ -30,6 +30,12 @@ def client(tmp_path, monkeypatch):
 
     monkeypatch.setenv("STATIC_DIR", str(tmp_path / "static-does-not-exist"))
 
+    # Configured by default so the OAuth path is exercised; tests that want the
+    # development bypass build their own client with these removed.
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "test-client-id")
+    monkeypatch.setenv("GITHUB_CLIENT_SECRET", "test-client-secret")
+    monkeypatch.setenv("SESSION_SECRET", "test-session-secret")
+
     # The schema is created lazily and remembered per database; each test starts
     # from a clean one, so that memory has to be cleared alongside it.
     from app.db import reset_schema_cache
@@ -42,9 +48,29 @@ def client(tmp_path, monkeypatch):
         yield test_client
 
 
+def sign_in_as(client, github_id=1, login="tester", email="tester@example.com"):
+    """Create a user and attach a signed session cookie to `client`.
+
+    Sessions are minted directly rather than driven through OAuth: every route
+    outside test_auth.py cares only that *somebody* is signed in, and stubbing
+    GitHub for each of them would be noise."""
+    from app.db import get_connection
+    from app.session import SESSION_COOKIE_NAME, create_session_token
+    from app.users import upsert_github_user
+
+    gen = get_connection()
+    db = next(gen)
+    try:
+        user_id = upsert_github_user(db, github_id, login, email)
+    finally:
+        gen.close()
+
+    client.cookies.set(SESSION_COOKIE_NAME, create_session_token(user_id))
+    return user_id
+
+
 @pytest.fixture()
 def authed_client(client):
-    """A client that has signed up and carries the resulting session cookie,
-    for exercising routes that require authentication."""
-    client.post("/api/auth/signup", json={"email": "authed@example.com", "password": "password123"})
+    """A client carrying a session cookie, for routes that require one."""
+    sign_in_as(client, github_id=1, login="authed", email="authed@example.com")
     return client
