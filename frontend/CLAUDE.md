@@ -277,6 +277,7 @@ Four rules keep it coherent:
   and the PDF confirmed to still generate under the new font stack
 
 ### Current API Endpoints
+- `GET /api/demo` - **The only unauthenticated document route.** The seeded Mutual NDA a signed-out visitor lands on: parsed document, part-filled values, and canned chat transcript in one payload
 - `GET /api/auth/github` - Begin GitHub sign-in, or issue a local development session when OAuth is unconfigured
 - `GET /api/auth/github/callback` - Complete sign-in and set the session cookie
 - `POST /api/auth/logout` - Clear the session cookie
@@ -287,8 +288,8 @@ Four rules keep it coherent:
 - `GET /api/saved-documents/{id}` - Full detail (fields + chat history) for one of the current user's saved documents; 404 if missing or not owned
 - `POST /api/saved-documents/{id}/messages` - Send a chat message for a saved document; persists the turn and returns the assistant's reply, resolved document type, and updated fields
 - `POST /api/chat` - (Auth-gated, legacy/unused by this frontend since LEG-8) Freeform AI chat turn; before a document is selected it helps the user pick one of the 11 catalog documents, then collects that document's fields - returns the assistant's reply, the selected document (if any), and its current understanding of all of that document's fields
-- `GET /api/documents` - List the 11 available document types from the catalog
-- `GET /api/documents/{document_id}` - Parsed detail for one document type (fields + numbered content blocks) for rendering the form/preview/PDF
+- `GET /api/documents` - (Auth-gated) List the 11 available document types from the catalog
+- `GET /api/documents/{document_id}` - (Auth-gated) Parsed detail for one document type (fields + numbered content blocks) for rendering the form/preview/PDF
 - `GET /api/health` - Health check
 
 ### GitHub OAuth and Account Deletion
@@ -307,3 +308,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+### Signed-Out Demo
+- The signed-out landing is no longer a sign-in form but a seeded Mutual NDA, so a visitor sees what the app does before being asked for anything. `page.tsx`'s state machine is now `loading → demo → dashboard → creator`; the `auth` view is gone, and logging out or deleting an account returns to `demo` rather than to a sign-in screen
+- The document is **part-filled** (4 of the Mutual NDA's 10 fields) with a five-turn transcript ending on the assistant's question. Deliberately not complete: a finished document demonstrates the output, but the `FieldRule` measure only reads as a *progress* meter mid-stride, and the transcript only reads as live if it stops mid-conversation
+- `DocumentChat` and `DownloadButton` take a `locked`/`onLocked` pair. Locked, they render exactly as they do when signed in and intercept on use - nothing greyed out, nothing disabled, because a dead-looking panel would undersell the app. `DocumentChat` also takes `savedDocumentId: number | null`, null in the demo, so there is no document to write to even if the lock were bypassed
+- Four things raise `SignInModal`: typing in the chat, Send, Download PDF, and a 20-second timer for visitors who read and drift. Typing counts because composing a whole answer that gets discarded is worse than being interrupted on the first keystroke. Dismissal is treated as an answer - the timer never re-arms, though the affordances still prompt
+- The header **Sign in** control deliberately does *not* open the modal; it is an `<a href="/api/auth/github">` straight to GitHub. The modal exists to interrupt someone reaching for a locked control and explain why they were stopped; clicking Sign in is the visitor asking outright, and answering that with a dialog offering to ask is a wasted click - worse immediately after they have dismissed that same dialog
+- `AuthScreen` is absorbed into `SignInModal` (`frontend/src/components/SignInModal.tsx`) and deleted. Two sign-in surfaces would have drifted apart, and the modal is now the only one - it is also where a failed OAuth round-trip surfaces, since the callback still redirects to `/?auth_error=<code>`. That handling moved to `frontend/src/lib/authErrors.ts`, which makes the own-property guard (a bare `MESSAGES[code]` lookup on `__proto__` returns an object and crashes the screen) and the query-parameter preservation testable without rendering a component
+- One new public route rather than un-gating the catalog: `GET /api/demo` (`backend/app/routes/demo.py`, fixture in `backend/app/demo.py`) returns the parsed document *and* the seeded values together, which is precisely what lets `/api/documents/*` stay behind authentication - the demo needs exactly one document and has no business being able to enumerate the other ten. It is read-only and stores nothing
+- `DocumentPreview` takes `isExample`, rendering an outlined "Example" stamp beside the title. The demo renders in the same styling as a real agreement between two named companies, and a screenshot of it should not be mistakable for a genuine executed contract
